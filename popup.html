@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blackboard Dark Mode</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Tokens ─────────────────────────────────────────── */
+    :root {
+      --c-bg:        #0a0a0c;
+      --c-surface:   #111115;
+      --c-border:    #2a1820;
+      --c-accent:    #6d1a36;
+      --c-accent-2:  #8a2044;
+      --c-on:        #4ade80;
+      --c-off:       #3a3a42;
+      --c-text:      #f0eee8;
+      --c-muted:     #6a6070;
+      --r-pill:      999px;
+      --transition:  0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: 'DM Mono', monospace;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .header {
+      padding: 20px 20px 0;
+      position: relative;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--c-accent), var(--c-accent-2));
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .app-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--c-text), var(--c-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .version-tag {
+      margin-left: auto;
+      font-size: 9px;
+      color: var(--c-muted);
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Divider ─────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--c-border) 30%, var(--c-border) 70%, transparent);
+      margin: 16px 0;
+    }
+
+    /* ── Main toggle card ─────────────────────────────────── */
+    .card {
+      margin: 0 16px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 14px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Glow effect behind the card when active */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--c-accent), var(--c-accent-2));
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: -1;
+    }
+
+    .card.active::before { opacity: 0.18; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .toggle-label-group {}
+    .toggle-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      color: var(--c-text);
+    }
+
+    .toggle-subtitle {
+      font-size: 10px;
+      color: var(--c-muted);
+      margin-top: 3px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Pill toggle switch ────────────────────────────────── */
+    .switch {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .track {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--r-pill);
+      background: var(--c-off);
+      cursor: pointer;
+      transition: background 0.3s ease;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .track::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+
+    input:checked + .track {
+      background: linear-gradient(135deg, var(--c-accent), var(--c-accent-2));
+    }
+
+    input:checked + .track::after {
+      transform: translateX(24px);
+      box-shadow: 0 0 10px rgba(92, 124, 250, 0.6);
+    }
+
+    /* ── Status indicator ───────────────────────────────────── */
+    .status-row {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--c-off);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .card.active .status-dot {
+      background: var(--c-on);
+      box-shadow: 0 0 6px var(--c-on);
+    }
+
+    .status-text {
+      font-size: 10px;
+      color: var(--c-muted);
+      letter-spacing: 0.05em;
+      transition: color 0.3s ease;
+    }
+
+    .card.active .status-text { color: var(--c-on); }
+
+    /* ── Scope info ─────────────────────────────────────────── */
+    .scope-info {
+      margin: 14px 16px 0;
+      display: flex;
+      gap: 8px;
+    }
+
+    .scope-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-pill);
+      padding: 5px 10px;
+      font-size: 9.5px;
+      color: var(--c-muted);
+      letter-spacing: 0.04em;
+    }
+
+    .scope-pill span { font-size: 11px; }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    .footer {
+      padding: 14px 20px 18px;
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 9px;
+      color: var(--c-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .footer-text a {
+      color: var(--c-accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo-icon">🌙</div>
+      <span class="app-name">DARKBOARD</span>
+      <span class="version-tag">v1.0</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="card" id="mainCard">
+    <div class="toggle-row">
+      <div class="toggle-label-group">
+        <div class="toggle-title">DARK MODE</div>
+        <div class="toggle-subtitle">All Blackboard Ultra pages</div>
+      </div>
+      <label class="switch" aria-label="Toggle dark mode">
+        <input type="checkbox" id="darkToggle" />
+        <span class="track"></span>
+      </label>
+    </div>
+    <div class="status-row">
+      <div class="status-dot"></div>
+      <span class="status-text" id="statusText">INACTIVE</span>
+    </div>
+  </div>
+
+  <div class="scope-info">
+    <div class="scope-pill"><span>🔒</span> blackboard.com only</div>
+    <div class="scope-pill"><span>🖼</span> iframes included</div>
+  </div>
+
+  <div class="footer">
+    <p class="footer-text">PORTFOLIO PROJECT · <a href="https://github.com" target="_blank">SOURCE CODE</a></p>
+  </div>
+
+  <script src="src/popup.js"></script>
+</body>
+</html>

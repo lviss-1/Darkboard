@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Dark Mode for Blackboard Ultra: Darkboard",
+  "version": "1.0.0",
+  "description": "A zero-FOUC dark theme for Blackboard Ultra. Toggle via the popup.",
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png"
+    },
+    "default_title": "Blackboard Dark Mode"
+  },
+
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+
+  "host_permissions": [
+    "https://online.iona.edu/*",
+    "https://*.blackboardcdn.com/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://online.iona.edu/*",
+        "https://*.blackboardcdn.com/*"
+      ],
+      "js": ["src/content.js"],
+      "css": ["src/dark-mode.css"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "darkmode-blackboard@portfolio",
+      "strict_min_version": "109.0"
+    }
+  }
+}

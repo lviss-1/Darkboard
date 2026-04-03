@@ -1,0 +1,1338 @@
+/*
+ * dark-mode.css — Blackboard Ultra Dark Theme
+ * Injected at document_start to prevent FOUC.
+ * All colours are driven by CSS variables — edit the :root block to retheme.
+ * I will be using these notes as a reference for future me in case anything ever goes down/change something and I need to look at the code
+ *
+ * Architecture note:
+ *   • :root defines the palette.
+ *   • [data-bb-dark] on <html> acts as the on/off gate.
+ *   • Rules only fire when the gate attribute is present.
+ *   • !important is used ONLY where Blackboard inlines conflicting styles.
+ *
+ * COLOR IDENTITY: Iona University
+ *   Black  #0a0a0c  — deep page canvas
+ *   Maroon #6d1a36  — Iona brand accent
+ *   White  #f0eee8  — warm off-white for text (easier on eyes than pure #fff)
+ */
+
+ /* ─── MUI FLOATING LABELS (NUCLEAR SPECIFICITY) ───────────────
+   Blackboard's JSS injection breaks variable scoping here.
+   We use hardcoded hex colors and high specificity to force it. */
+html[data-bb-dark] body div label[class*="MuiFormLabel"],
+html[data-bb-dark] body div label[class*="MuiInputLabel"],
+html[data-bb-dark] label[id*="filter"],
+html[data-bb-dark] label[id*="label"] {
+  background-color: #0a0a0c !important; /* Hardcoded dark canvas */
+  background: #0a0a0c !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: #8a8490 !important; /* Hardcoded muted text */
+}
+
+/* Nuke any pseudo-elements rendering white boxes behind the label */
+html[data-bb-dark] label[class*="MuiFormLabel"]::before,
+html[data-bb-dark] label[class*="MuiFormLabel"]::after,
+html[data-bb-dark] label[class*="MuiInputLabel"]::before,
+html[data-bb-dark] label[class*="MuiInputLabel"]::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Ensure the fieldset notch doesn't carry a stray white background */
+html[data-bb-dark] fieldset[class*="PrivateNotchedOutline"],
+html[data-bb-dark] fieldset[class*="PrivateNotchedOutline"] legend,
+html[data-bb-dark] [class*="MuiOutlinedInput"] legend {
+  background-color: transparent !important;
+}
+
+/* ─── MUI DROPDOWN BACKDROPS (THE BLACK SCREEN FIX) ───────────────
+   MUI spawns a full-screen invisible backdrop to detect clicks. */
+html[data-bb-dark] [class*="MuiBackdrop"],
+html[data-bb-dark] [class*="MuiBackdroproot"],
+html[data-bb-dark] [class*="MuiPopover"],
+html[data-bb-dark] [class*="MuiPopoverroot"] {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Ensure the actual dropdown menu floating box (the MUI "Paper") stays dark */
+html[data-bb-dark] [class*="MuiPaperroot"],
+html[data-bb-dark] [class*="MuiMenu-paper"],
+html[data-bb-dark] [class*="MuiPaper"] {
+  background-color: var(--bg-secondary) !important;
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8) !important; /* Adds a nice drop shadow */
+}
+
+/* Fix the individual list items inside the dropdown */
+html[data-bb-dark] [class*="MuiMenuItemroot"],
+html[data-bb-dark] [class*="MuiMenuItem"] {
+  background-color: transparent !important;
+  color: var(--text-main) !important;
+}
+
+/* Add a hover effect for the menu items */
+html[data-bb-dark] [class*="MuiMenuItemroot"]:hover,
+html[data-bb-dark] [class*="MuiMenuItem"]:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* ─── 1. PALETTE ─────────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds — layered blacks */
+  --bg-primary:       #0a0a0c;   /* page canvas — near-black */
+  --bg-secondary:     #111115;   /* cards, panels */
+  --bg-tertiary:      #1a1a20;   /* hover states, inputs, raised surfaces */
+  --bg-sidebar:       #0d0d10;   /* left-nav rail */
+
+  /* Text — warm whites */
+  --text-main:        #f0eee8;   /* body copy */
+  --text-muted:       #8a8490;   /* captions, placeholders, secondary */
+  --text-heading:     #ffffff;   /* h1–h4 */
+  --text-link:        #c9748e;   /* links — light maroon */
+  --text-link-hover:  #e8a0b4;   /* link hover */
+
+  /* Borders — dark and invisible by default, maroon only on focus */
+  --border-subtle:    #1e1e24;   /* near-invisible dividers */
+  --border-strong:    #2e2e38;   /* slightly visible borders */
+  --border-focus:     #6d1a36;   /* maroon — ONLY on focused inputs */
+
+  /* Iona Maroon accent system */
+  --accent-primary:   #6d1a36;   /* primary CTA, active states */
+  --accent-hover:     #8a2044;   /* lighter maroon for hover */
+  --accent-glow:      rgba(109, 26, 54, 0.25); /* subtle maroon glow */
+
+  /* Grade colors — kept semantic, slightly warmer to match palette */
+  --accent-success:   #4ade80;   /* green  — A grade  */
+  --accent-warn:      #fbbf24;   /* amber  — B/C grade */
+  --accent-danger:    #f87171;   /* red    — D/F grade */
+
+  --shadow-card:      0 2px 16px rgba(0, 0, 0, 0.6);
+  --shadow-maroon:    0 2px 16px rgba(109, 26, 54, 0.3);
+}
+
+/* ─── 2. GATE — rules only apply when [data-bb-dark] is on <html> ────────── */
+
+/* ─── 3. GLOBAL RESET ───────────────────────────────────────────────────── */
+html[data-bb-dark],
+html[data-bb-dark] body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* ─── UNIVERSAL DARK OVERRIDE ────────────────────────────────────────────
+   The single most powerful rule in this file.
+   Every element on the page inherits from body unless it sets its own
+   background. By setting ALL elements to inherit, we guarantee nothing
+   can be white or light grey unless we explicitly allow it below.
+   This is the "paint every room in the building" approach.               */
+html[data-bb-dark] * {
+  background-color: inherit !important;
+  color: inherit !important;
+}
+
+/* Now re-establish the dark root so inheritance flows correctly */
+html[data-bb-dark] body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Exceptions — elements that must NOT inherit (images, SVGs, videos,
+   transparent overlays, focus rings, the accent underline on active tabs) */
+html[data-bb-dark] img,
+html[data-bb-dark] video,
+html[data-bb-dark] canvas,
+html[data-bb-dark] svg,
+html[data-bb-dark] svg *,
+html[data-bb-dark] [class*="icon"] svg,
+html[data-bb-dark] [class*="Icon"] svg {
+  background-color: transparent !important;
+}
+
+html[data-bb-dark] svg path,
+html[data-bb-dark] svg circle,
+html[data-bb-dark] svg rect,
+html[data-bb-dark] svg polygon,
+html[data-bb-dark] svg line {
+  /* Don't force color on SVG shapes — let them keep their fill/stroke */
+  color: unset !important;
+  border-color: unset !important;
+}
+
+/* Transparent elements that must stay transparent */
+html[data-bb-dark] [class*="overlay"],
+html[data-bb-dark] [class*="Overlay"],
+html[data-bb-dark] [class*="backdrop"],
+html[data-bb-dark] [class*="Backdrop"],
+html[data-bb-dark] [aria-hidden="true"]:not([class*="badge"]):not([class*="Badge"]) {
+  background-color: transparent !important;
+}
+
+/* FORCE CLEAR BACKGROUND IMAGES AND GRADIENTS
+   Blackboard hides our dark background-color by layering a white 
+   background-image (gradient) on top for "unread" notifications. */
+html[data-bb-dark] .activity-stream li,
+html[data-bb-dark] .activity-group li,
+html[data-bb-dark] li.stream-item-container,
+html[data-bb-dark] [class*="notification"] {
+    background: var(--bg-primary) !important;
+    background-color: var(--bg-primary) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+/* ─── COURSE CARD EXCEPTION — preserve original photo + card appearance ──
+   The user wants course cards to look exactly as Blackboard intended:
+   course photo on top, white card body with course name and instructor.
+   We opt these elements OUT of the universal dark override entirely.
+   Think of it as taping off a section before painting — these stay original. */
+
+html[data-bb-dark] [class*="course-card"],
+html[data-bb-dark] [class*="CourseCard"],
+html[data-bb-dark] [class*="course-card"] *,
+html[data-bb-dark] [class*="CourseCard"] *,
+html[data-bb-dark] bb-course-card,
+html[data-bb-dark] bb-course-card *,
+html[data-bb-dark] [class*="courseCard"],
+html[data-bb-dark] [class*="courseCard"] *,
+html[data-bb-dark] [data-component="courseCard"],
+html[data-bb-dark] [data-component="courseCard"] * {
+  background-color: unset !important;
+  color: unset !important;
+  border-color: unset !important;
+}
+
+/* The image/banner area at the top of each card must always show */
+html[data-bb-dark] [class*="course-card"] img,
+html[data-bb-dark] [class*="CourseCard"] img,
+html[data-bb-dark] bb-course-card img,
+html[data-bb-dark] [class*="course-banner"],
+html[data-bb-dark] [class*="CourseBanner"],
+html[data-bb-dark] [class*="card-image"],
+html[data-bb-dark] [class*="CardImage"],
+html[data-bb-dark] [class*="card-hero"],
+html[data-bb-dark] [class*="CardHero"] {
+  background-color: unset !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+
+
+
+
+/* ─── 4. TYPOGRAPHY ─────────────────────────────────────────────────────── */
+html[data-bb-dark] h1,
+html[data-bb-dark] h2,
+html[data-bb-dark] h3,
+html[data-bb-dark] h4,
+html[data-bb-dark] h5,
+html[data-bb-dark] h6 {
+  color: var(--text-heading) !important;
+}
+
+html[data-bb-dark] p,
+html[data-bb-dark] span,
+html[data-bb-dark] li,
+html[data-bb-dark] label,
+html[data-bb-dark] td,
+html[data-bb-dark] th {
+  color: var(--text-main) !important;
+}
+
+html[data-bb-dark] a {
+  color: var(--text-link) !important;
+}
+html[data-bb-dark] a:hover {
+  color: var(--text-link-hover) !important;
+}
+
+/* ─── 5. BLACKBOARD ULTRA — HIGH-LEVEL CONTAINERS ───────────────────────── */
+
+/* Main app shell */
+html[data-bb-dark] #main-content-inner,
+html[data-bb-dark] [class*="Shell__"],
+html[data-bb-dark] [class*="Layout__"],
+html[data-bb-dark] [class*="Page__"],
+html[data-bb-dark] bb-page-content,
+html[data-bb-dark] .bb-page-content {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Left navigation / sidebar */
+html[data-bb-dark] [class*="Navigation__"],
+html[data-bb-dark] [class*="SideNav__"],
+html[data-bb-dark] [class*="LeftNav__"],
+html[data-bb-dark] nav[aria-label],
+html[data-bb-dark] .side-panel,
+html[data-bb-dark] #side-panel {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+}
+
+/* Active nav item — maroon highlight */
+html[data-bb-dark] [class*="Navigation__"] [aria-current],
+html[data-bb-dark] [class*="Navigation__"] [class*="active"],
+html[data-bb-dark] [class*="Navigation__"] [class*="Active"],
+html[data-bb-dark] nav [aria-current="page"],
+html[data-bb-dark] nav [class*="active"],
+html[data-bb-dark] nav [class*="selected"] {
+  background-color: var(--accent-primary) !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+}
+
+/* Top header / navbar */
+html[data-bb-dark] header,
+html[data-bb-dark] [class*="Header__"],
+html[data-bb-dark] [class*="TopNav__"],
+html[data-bb-dark] [role="banner"] {
+  background-color: var(--bg-sidebar) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
+}
+
+/* ─── 6. CARDS & PANELS ─────────────────────────────────────────────────── */
+html[data-bb-dark] [class*="Card__"],
+html[data-bb-dark] [class*="Panel__"],
+html[data-bb-dark] [class*="Module__"],
+html[data-bb-dark] [class*="ContentBlock__"],
+html[data-bb-dark] .bb-card,
+html[data-bb-dark] .course-card,
+html[data-bb-dark] article {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-card) !important;
+  color: var(--text-main) !important;
+}
+
+/* ─── 7. FORMS & INPUTS ─────────────────────────────────────────────────── */
+html[data-bb-dark] input,
+html[data-bb-dark] textarea,
+html[data-bb-dark] select {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+html[data-bb-dark] input:focus,
+html[data-bb-dark] textarea:focus,
+html[data-bb-dark] select:focus {
+  border-color: var(--border-focus) !important;
+  outline: 2px solid var(--border-focus) !important;
+  outline-offset: 1px !important;
+}
+
+html[data-bb-dark] input::placeholder,
+html[data-bb-dark] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* ─── FLOATING LABELS (Filters, Terms, Dropdowns) ───────────────
+   Blackboard uses Angular web components (bb-select) and inner spans 
+   for these labels. We have to target them explicitly. */
+html[data-bb-dark] bb-select label,
+html[data-bb-dark] bb-select [class*="label"],
+html[data-bb-dark] bb-select label span,
+html[data-bb-dark] bb-course-filter label,
+html[data-bb-dark] bb-course-filter [class*="label"],
+html[data-bb-dark] [class*="filter"] label,
+html[data-bb-dark] [class*="filter"] label span,
+html[data-bb-dark] [class*="dropdown"] label,
+html[data-bb-dark] [class*="select"] label,
+html[data-bb-dark] .bb-select-label,
+html[data-bb-dark] .floating-label,
+html[data-bb-dark] label span {
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
+  background-image: none !important;
+}
+
+/* Fallback for dropdowns sitting inside lighter surfaces */
+html[data-bb-dark] [class*="card"] label,
+html[data-bb-dark] [class*="card"] label span,
+html[data-bb-dark] [class*="panel"] label,
+html[data-bb-dark] [class*="panel"] label span {
+  background-color: var(--bg-secondary) !important;
+  background: var(--bg-secondary) !important;
+}
+
+/* ─── 8. BUTTONS ─────────────────────────────────────────────────────────── */
+html[data-bb-dark] button[class*="primary"],
+html[data-bb-dark] [class*="Button--primary"],
+html[data-bb-dark] .bb-button-primary {
+  background-color: var(--accent-primary) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+html[data-bb-dark] button[class*="primary"]:hover,
+html[data-bb-dark] [class*="Button--primary"]:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+html[data-bb-dark] button:not([class*="primary"]),
+html[data-bb-dark] [class*="Button--secondary"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+html[data-bb-dark] button:not([class*="primary"]):hover {
+  border-color: var(--accent-primary) !important;
+  color: var(--text-heading) !important;
+}
+
+/* ─── 9. TABLES ─────────────────────────────────────────────────────────── */
+html[data-bb-dark] table {
+  background-color: var(--bg-secondary) !important;
+}
+
+html[data-bb-dark] thead,
+html[data-bb-dark] th {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-heading) !important;
+  border-bottom: 1px solid var(--border-strong) !important;
+}
+
+html[data-bb-dark] tr:nth-child(even) {
+  background-color: var(--bg-tertiary) !important;
+}
+
+html[data-bb-dark] td {
+  border-color: var(--border-subtle) !important;
+}
+
+/* ─── 10. MODALS & OVERLAYS ──────────────────────────────────────────────── */
+html[data-bb-dark] [role="dialog"],
+html[data-bb-dark] [class*="Modal__"],
+html[data-bb-dark] [class*="Drawer__"],
+html[data-bb-dark] [class*="Flyout__"] {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Modal backdrop */
+html[data-bb-dark] [class*="Overlay__"],
+html[data-bb-dark] [class*="Backdrop__"] {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ─── BLACKBOARD PEEK PANEL & FLYOUT BACKDROPS (HIGH SPECIFICITY) ─────────
+   Forces the backdrop to be dim and semi-transparent. Updated to catch 
+   the exact bb-offcanvas-overlay class found in DevTools. */
+html[data-bb-dark] body div.bb-offcanvas-overlay,
+html[data-bb-dark] body div[class*="offcanvas-overlay"],
+html[data-bb-dark] body div[class*="peek-panel-bg"],
+html[data-bb-dark] body div[class*="PeekPanelBg"],
+html[data-bb-dark] body div[class*="offcanvas-bg"],
+html[data-bb-dark] body div[class*="panel-backdrop"],
+html[data-bb-dark] body div[class*="drawer-backdrop"],
+html[data-bb-dark] body div[class*="dialog-backdrop"],
+html[data-bb-dark] body bb-slideout-backdrop,
+html[data-bb-dark] body [class*="close-peek"],
+html[data-bb-dark] body [class*="js-peek-background"] {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(2px) !important; 
+}
+
+/* ─── 11. SCROLLBARS (Webkit / Chromium) ────────────────────────────────── */
+html[data-bb-dark] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-bb-dark] ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+html[data-bb-dark] ::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+html[data-bb-dark] ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ─── 12. STATUS BADGES ──────────────────────────────────────────────────── */
+html[data-bb-dark] [class*="Badge--success"],
+html[data-bb-dark] [class*="status-success"] {
+  background-color: rgba(52, 211, 153, 0.15) !important;
+  color: var(--accent-success) !important;
+}
+
+html[data-bb-dark] [class*="Badge--warn"],
+html[data-bb-dark] [class*="status-warn"] {
+  background-color: rgba(251, 191, 36, 0.15) !important;
+  color: var(--accent-warn) !important;
+}
+
+html[data-bb-dark] [class*="Badge--danger"],
+html[data-bb-dark] [class*="status-error"] {
+  background-color: rgba(248, 113, 113, 0.15) !important;
+  color: var(--accent-danger) !important;
+}
+
+/* ─── 12b. GRADE SCORE COLORS — green / yellow / red by performance ──────
+   Blackboard renders grades as text like "50 / 50" or "63 / 65" inside
+   a <td> or [role="gridcell"]. We can't read the numbers in CSS alone,
+   so we use Blackboard's own data attributes and aria labels which encode
+   the grade status, plus target the colored pill/badge it renders on the
+   overview grades page (the yellow pill seen earlier).
+
+   Thresholds (matching Blackboard's own defaults):
+     ≥ 90%  → green   (A)
+     70–89% → yellow  (B/C)
+     < 70%  → red     (D/F)                                               */
+
+/* ─── GRADEBOOK COLOR OVERRIDES ───────────────
+   Forces the color onto the container AND any nested spans.
+   Uses standard thresholds: >=90 (Green), 70-89 (Yellow), <70 (Red) */
+
+/* ─── GRADEBOOK SCORE PILLS ───────────────
+   Targets ONLY the exact number element. Adds a tinted background pill. */
+
+html[data-bb-dark] .darkboard-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  white-space: nowrap !important;
+  width: max-content !important; /* Forces the pill to shrink-wrap the numbers */
+}
+
+/* Green A-Grades */
+html[data-bb-dark] .darkboard-pill[data-grade-status="good"] {
+  background-color: rgba(74, 222, 128, 0.15) !important;
+  color: #4ade80 !important; 
+  border: 1px solid rgba(74, 222, 128, 0.3) !important;
+}
+
+/* Yellow B/C-Grades */
+html[data-bb-dark] .darkboard-pill[data-grade-status="average"] {
+  background-color: rgba(251, 191, 36, 0.15) !important;
+  color: #fbbf24 !important; 
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+}
+
+/* Red D/F-Grades */
+html[data-bb-dark] .darkboard-pill[data-grade-status="poor"] {
+  background-color: rgba(248, 113, 113, 0.15) !important;
+  color: #f87171 !important; 
+  border: 1px solid rgba(248, 113, 113, 0.3) !important;
+}
+
+/* Blackboard Ultra encodes grade status on the grade cell element itself */
+html[data-bb-dark] [class*="grade-value"],
+html[data-bb-dark] [class*="GradeValue"],
+html[data-bb-dark] [class*="grade-score"],
+html[data-bb-dark] [class*="GradeScore"],
+html[data-bb-dark] [data-grade-status],
+html[data-bb-dark] [class*="grade-pill"],
+html[data-bb-dark] [class*="GradePill"] {
+  font-weight: 600 !important;
+}
+
+/* Status-based coloring via Blackboard's own data/aria attributes */
+html[data-bb-dark] [data-grade-status="good"],
+html[data-bb-dark] [class*="grade--good"],
+html[data-bb-dark] [class*="Grade--good"],
+html[data-bb-dark] [aria-label*="grade: A"],
+html[data-bb-dark] [aria-label*="Grade: A"] {
+  color: var(--accent-success) !important;
+}
+
+html[data-bb-dark] [data-grade-status="average"],
+html[data-bb-dark] [class*="grade--average"],
+html[data-bb-dark] [class*="Grade--average"],
+html[data-bb-dark] [aria-label*="grade: B"],
+html[data-bb-dark] [aria-label*="grade: C"],
+html[data-bb-dark] [aria-label*="Grade: B"],
+html[data-bb-dark] [aria-label*="Grade: C"] {
+  color: var(--accent-warn) !important;
+}
+
+html[data-bb-dark] [data-grade-status="poor"],
+html[data-bb-dark] [class*="grade--poor"],
+html[data-bb-dark] [class*="Grade--poor"],
+html[data-bb-dark] [aria-label*="grade: D"],
+html[data-bb-dark] [aria-label*="grade: F"],
+html[data-bb-dark] [aria-label*="Grade: D"],
+html[data-bb-dark] [aria-label*="Grade: F"] {
+  color: var(--accent-danger) !important;
+}
+
+/* The colored pill badge on the grades overview page (yellow pill etc.)  */
+html[data-bb-dark] [class*="grade-badge"],
+html[data-bb-dark] [class*="GradeBadge"],
+html[data-bb-dark] [class*="score-badge"],
+html[data-bb-dark] [class*="ScoreBadge"] {
+  border-radius: 999px !important;
+  padding: 2px 10px !important;
+  font-weight: 600 !important;
+}
+
+/* Preserve the colored pill backgrounds Blackboard sets inline
+   (e.g. the yellow "74/100" pill — we don't want to override those
+   since they already communicate grade status visually)              */
+html[data-bb-dark] [class*="grade-badge"][style*="background"],
+html[data-bb-dark] [class*="GradeBadge"][style*="background"],
+html[data-bb-dark] [class*="score-badge"][style*="background"],
+html[data-bb-dark] [class*="ScoreBadge"][style*="background"] {
+  background-color: unset !important;
+  color: unset !important;
+}
+
+
+
+/* ─── 13. IFRAMES — style the host element so there's no white flash ─────── */
+html[data-bb-dark] iframe {
+  color-scheme: dark;
+}
+
+/* ─── 14. FORCE COLOR-SCHEME ON ROOT (helps native browser UI) ──────────── */
+html[data-bb-dark] {
+  color-scheme: dark;
+}
+
+/* ─── 15. IONA-SPECIFIC: GRADEBOOK WHITE SPACE ───────────────────────────
+   The gradebook page leaves a large white area below the table because the
+   bb-grades-* web components and their host <main> don't inherit body bg.
+   We also target the Angular component host elements directly.           */
+
+html[data-bb-dark] main,
+html[data-bb-dark] [role="main"],
+html[data-bb-dark] #main-content,
+html[data-bb-dark] #content-wrapper,
+html[data-bb-dark] .content-wrapper {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Gradebook-specific web components */
+html[data-bb-dark] bb-grades-student-attempts,
+html[data-bb-dark] bb-grades-student,
+html[data-bb-dark] bb-grades-base,
+html[data-bb-dark] bb-grade-detail,
+html[data-bb-dark] [class*="grades-"],
+html[data-bb-dark] [class*="Grades"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Gradebook table container — the white area below the last row */
+html[data-bb-dark] [class*="gradebook"],
+html[data-bb-dark] [class*="Gradebook"],
+html[data-bb-dark] [data-region="gradebook"],
+html[data-bb-dark] .grader-scaffold,
+html[data-bb-dark] .student-grades-wrapper {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Pagination controls area (page number box, arrow buttons) */
+html[data-bb-dark] [class*="Pagination"],
+html[data-bb-dark] [class*="pagination"],
+html[data-bb-dark] [aria-label*="pagination"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+html[data-bb-dark] [class*="Pagination"] button,
+html[data-bb-dark] [class*="pagination"] button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* ─── 16. IONA-SPECIFIC: INSTITUTION PAGE CONTENT AREA ───────────────────
+   The institution page right-side content panel (white area with Follett
+   ACCESS, CSA instructions etc.) is a separate scrollable div that sits
+   outside the main shell and doesn't inherit the body background.        */
+
+html[data-bb-dark] bb-institution-page,
+html[data-bb-dark] [class*="institution"],
+html[data-bb-dark] [class*="Institution"],
+html[data-bb-dark] [data-region="institution-page"],
+html[data-bb-dark] .institution-content,
+html[data-bb-dark] .ultra-course-view {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* The inner content blocks on the institution page (Follett card, CSA box) */
+html[data-bb-dark] [class*="content-block"],
+html[data-bb-dark] [class*="ContentArea"],
+html[data-bb-dark] [class*="content-area"],
+html[data-bb-dark] .contentArea,
+html[data-bb-dark] .content-region {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+}
+
+/* The bordered instruction box (Step 1, Step 2… CSA instructions) */
+html[data-bb-dark] [class*="instructional"],
+html[data-bb-dark] [class*="Instructional"],
+html[data-bb-dark] .step-instructions,
+html[data-bb-dark] [style*="background-color: rgb(255, 255, 255)"],
+html[data-bb-dark] [style*="background-color: white"],
+html[data-bb-dark] [style*="background-color:#fff"],
+html[data-bb-dark] [style*="background-color: #fff"],
+html[data-bb-dark] [style*="background:#fff"],
+html[data-bb-dark] [style*="background: #fff"],
+html[data-bb-dark] [style*="background:white"],
+html[data-bb-dark] [style*="background: white"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* ─── 17. NUCLEAR FALLBACK — any div/section with an explicit white bg ────
+   Blackboard Ultra and its embedded content frequently inline
+   style="background-color:#ffffff" or similar. This catches all of them.
+   It's the last resort — specific rules above take conceptual priority.  */
+
+html[data-bb-dark] div,
+html[data-bb-dark] section,
+html[data-bb-dark] aside,
+html[data-bb-dark] ul,
+html[data-bb-dark] ol {
+  background-color: inherit;
+}
+
+/* Catch-all for any element with an inline white/light background */
+html[data-bb-dark] [style*="background-color: rgb(255, 255, 255)"],
+html[data-bb-dark] [style*="background-color:rgb(255, 255, 255)"],
+html[data-bb-dark] [style*="background-color: rgb(255,255,255)"],
+html[data-bb-dark] [style*="background-color:#ffffff"],
+html[data-bb-dark] [style*="background-color: #ffffff"],
+html[data-bb-dark] [style*="background-color:#FFFFFF"],
+html[data-bb-dark] [style*="background-color: #FFFFFF"],
+html[data-bb-dark] [style*="background-color: #f5f5f5"],
+html[data-bb-dark] [style*="background-color: #fafafa"],
+html[data-bb-dark] [style*="background-color: #f8f8f8"],
+html[data-bb-dark] [style*="background-color: #f2f2f2"],
+html[data-bb-dark] [style*="background-color: #eeeeee"],
+html[data-bb-dark] [style*="background-color: #e8e8e8"],
+html[data-bb-dark] [style*="background-color: #e0e0e0"],
+html[data-bb-dark] [style*="background-color: #d8d8d8"],
+html[data-bb-dark] [style*="background-color: rgb(245, 245, 245)"],
+html[data-bb-dark] [style*="background-color: rgb(248, 248, 248)"],
+html[data-bb-dark] [style*="background-color: rgb(242, 242, 242)"],
+html[data-bb-dark] [style*="background-color: rgb(238, 238, 238)"],
+html[data-bb-dark] [style*="background-color: rgb(232, 232, 232)"],
+html[data-bb-dark] [style*="background-color: rgb(224, 224, 224)"],
+html[data-bb-dark] [style*="background-color: rgb(216, 216, 216)"],
+html[data-bb-dark] [style*="background-color: rgb(250, 250, 250)"],
+html[data-bb-dark] [style*="background: #f"],
+html[data-bb-dark] [style*="background: rgb(2"],
+html[data-bb-dark] [style*="background: rgb(23"],
+html[data-bb-dark] [style*="background: rgb(24"],
+html[data-bb-dark] [style*="background: rgb(25"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Also catch light text colors that become invisible on dark backgrounds */
+html[data-bb-dark] [style*="color: rgb(0, 0, 0)"],
+html[data-bb-dark] [style*="color: #000000"],
+html[data-bb-dark] [style*="color: #000"],
+html[data-bb-dark] [style*="color: #333"],
+html[data-bb-dark] [style*="color: #333333"],
+html[data-bb-dark] [style*="color: #444"],
+html[data-bb-dark] [style*="color: #444444"],
+html[data-bb-dark] [style*="color: #555"],
+html[data-bb-dark] [style*="color: #555555"],
+html[data-bb-dark] [style*="color: rgb(51, 51, 51)"],
+html[data-bb-dark] [style*="color: rgb(68, 68, 68)"],
+html[data-bb-dark] [style*="color: rgb(85, 85, 85)"] {
+  color: var(--text-main) !important;
+}
+
+/* ─── 19. ACTIVITY STREAM — hover states & timeline items ────────────────
+   The activity/stream page highlights hovered items with a light grey
+   background. We replace that with a dark hover that's actually visible.  */
+
+/* Aggressive fix for white notification wrappers in the stream */
+html[data-bb-dark] .activity-stream li,
+html[data-bb-dark] .activity-group li,
+html[data-bb-dark] bb-activity-stream li,
+html[data-bb-dark] [class*="notification"],
+html[data-bb-dark] [class*="Notification"] {
+  background-color: var(--bg-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Catch any inline background colours Blackboard injects on the fly */
+html[data-bb-dark] .activity-stream [style*="background"],
+html[data-bb-dark] .activity-group [style*="background"],
+html[data-bb-dark] bb-activity-stream [style*="background"] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* ── EXACT SELECTOR MATCH ────────────────────────────────────────────────
+   DevTools confirmed the winning rule is:
+     .base-recent-activity .activity-stream .activity-group .stream-item
+   with specificity (0,4,0). We mirror it exactly under our [data-bb-dark]
+   gate, which adds (0,1,0) giving us (0,5,0) — guaranteed to win.
+   We also target div.stream-item.angular-animate directly as seen in DOM. */
+html[data-bb-dark] .base-recent-activity .activity-stream .activity-group .stream-item,
+html[data-bb-dark] .activity-stream .activity-group .stream-item,
+html[data-bb-dark] .activity-group .stream-item,
+html[data-bb-dark] div.stream-item,
+html[data-bb-dark] div.stream-item.angular-animate,
+html[data-bb-dark] li.stream-item-container,
+html[data-bb-dark] li.stream-item-container.notification-default,
+html[data-bb-dark] li.stream-item-container.child-is-invokable,
+/* The parent <ul> and activity-group wrappers */
+html[data-bb-dark] ul.activity-group,
+html[data-bb-dark] .activity-group,
+html[data-bb-dark] .js-previousStreamEntries,
+html[data-bb-dark] .js-previousStreamEntries.activity-group,
+html[data-bb-dark] div.js-previousStreamEntries,
+html[data-bb-dark] [class*="previousStreamEntries"],
+html[data-bb-dark] [class*="streamEntries"],
+html[data-bb-dark] .main-column,
+html[data-bb-dark] .columns.main-column,
+html[data-bb-dark] [class*="activity-group"],
+html[data-bb-dark] [class*="base-recent-activity"] {
+  background-color: #0a0a0c !important;
+  color: #f0eee8 !important;
+}
+
+html[data-bb-dark] .base-recent-activity .activity-stream .activity-group .stream-item:hover,
+html[data-bb-dark] .activity-group .stream-item:hover,
+html[data-bb-dark] div.stream-item:hover,
+html[data-bb-dark] div.stream-item.angular-animate:hover,
+html[data-bb-dark] li.stream-item-container:hover {
+  background-color: #1a1a20 !important;
+}
+
+/* THE KEY FIX: override the light grey hover with a dark highlight */
+html[data-bb-dark] [class*="stream-item"]:hover,
+html[data-bb-dark] [class*="StreamItem"]:hover,
+html[data-bb-dark] [class*="activity-item"]:hover,
+html[data-bb-dark] [class*="ActivityItem"]:hover,
+html[data-bb-dark] [class*="stream-event"]:hover,
+html[data-bb-dark] [class*="timeline-item"]:hover,
+html[data-bb-dark] [class*="TimelineItem"]:hover,
+html[data-bb-dark] bb-activity-stream li:hover,
+html[data-bb-dark] bb-stream li:hover {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+}
+
+/* EXPANDED ITEM WRAPPER — the full-width light grey strip that appears
+   when a stream item is expanded (the region outside the dark card).
+   Blackboard wraps the expanded row in a host element that gets a
+   light background applied at the row/section level.                  */
+html[data-bb-dark] [class*="stream"] > *,
+html[data-bb-dark] [class*="activity"] > *,
+html[data-bb-dark] bb-activity-stream > *,
+html[data-bb-dark] bb-stream > * {
+  background-color: var(--bg-primary) !important;
+}
+
+/* The expanded row container specifically */
+html[data-bb-dark] [class*="expanded"],
+html[data-bb-dark] [class*="Expanded"],
+html[data-bb-dark] [class*="selected-row"],
+html[data-bb-dark] [class*="SelectedRow"],
+html[data-bb-dark] [class*="active-row"],
+html[data-bb-dark] [class*="ActiveRow"],
+html[data-bb-dark] [aria-expanded="true"],
+html[data-bb-dark] [aria-selected="true"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Catch the hover via inline-style background too (Blackboard sets these
+   dynamically via JS on mouseenter — the attribute selector catches it) */
+html[data-bb-dark] [class*="stream"] [style*="background-color: rgb(245"],
+html[data-bb-dark] [class*="stream"] [style*="background-color: rgb(238"],
+html[data-bb-dark] [class*="stream"] [style*="background-color: rgb(242"],
+html[data-bb-dark] [class*="stream"] [style*="background-color: rgb(232"],
+html[data-bb-dark] [class*="stream"] [style*="background-color: #f"],
+html[data-bb-dark] [class*="activity"] [style*="background-color: rgb(245"],
+html[data-bb-dark] [class*="activity"] [style*="background-color: rgb(238"],
+html[data-bb-dark] [class*="activity"] [style*="background-color: #f"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Section header rows ("Today", "Recent", date labels) */
+html[data-bb-dark] [class*="stream-date"],
+html[data-bb-dark] [class*="StreamDate"],
+html[data-bb-dark] [class*="stream-header"],
+html[data-bb-dark] [class*="StreamHeader"],
+html[data-bb-dark] [class*="date-separator"],
+html[data-bb-dark] [class*="DateSeparator"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-heading) !important;
+}
+
+/* Timeline dot/icon squares */
+html[data-bb-dark] [class*="stream-icon"],
+html[data-bb-dark] [class*="StreamIcon"],
+html[data-bb-dark] [class*="timeline-icon"],
+html[data-bb-dark] [class*="event-icon"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* "View my grade" button inside stream items */
+html[data-bb-dark] [class*="stream"] button,
+html[data-bb-dark] [class*="activity"] button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+html[data-bb-dark] [class*="stream"] button:hover,
+html[data-bb-dark] [class*="activity"] button:hover {
+  background-color: var(--accent-primary) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+/* ─── 21. PROFILE PAGE — info cards & form rows ──────────────────────────
+   The Basic Information / System Settings / Additional Information cards
+   use a near-white background (#f5f5f5 or similar) with light grey text.
+   The form rows inside them are borderless divs with inline light styles.  */
+
+html[data-bb-dark] bb-profile,
+html[data-bb-dark] bb-edit-profile,
+html[data-bb-dark] [class*="profile"],
+html[data-bb-dark] [class*="Profile"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* The white card panels (Basic Info, System Settings, Additional Info) */
+html[data-bb-dark] [class*="profile"] [class*="card"],
+html[data-bb-dark] [class*="profile"] [class*="Card"],
+html[data-bb-dark] [class*="profile"] [class*="panel"],
+html[data-bb-dark] [class*="profile"] [class*="Panel"],
+html[data-bb-dark] [class*="Profile"] section,
+html[data-bb-dark] [class*="profile-section"],
+html[data-bb-dark] [class*="settings-card"],
+html[data-bb-dark] [class*="info-card"] {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+}
+
+/* Individual form rows (Full Name, Email Address, Student ID, Password rows) */
+html[data-bb-dark] [class*="field-row"],
+html[data-bb-dark] [class*="FieldRow"],
+html[data-bb-dark] [class*="form-row"],
+html[data-bb-dark] [class*="FormRow"],
+html[data-bb-dark] [class*="profile"] li,
+html[data-bb-dark] [class*="profile"] dl,
+html[data-bb-dark] [class*="profile"] dt,
+html[data-bb-dark] [class*="profile"] dd {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Row dividers inside the cards */
+html[data-bb-dark] [class*="profile"] hr,
+html[data-bb-dark] [class*="Profile"] hr {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Field labels (the muted left-side text like "Full Name", "Email Address") */
+html[data-bb-dark] [class*="field-label"],
+html[data-bb-dark] [class*="FieldLabel"],
+html[data-bb-dark] [class*="label-text"],
+html[data-bb-dark] [class*="profile"] label {
+  color: var(--text-muted) !important;
+}
+
+/* Field values (the right-side text like the actual name, email) */
+html[data-bb-dark] [class*="field-value"],
+html[data-bb-dark] [class*="FieldValue"],
+html[data-bb-dark] [class*="profile"] [class*="value"] {
+  color: var(--text-main) !important;
+}
+
+/* System Settings card — language, privacy, notification links */
+html[data-bb-dark] [class*="system-settings"],
+html[data-bb-dark] [class*="SystemSettings"],
+html[data-bb-dark] [class*="notification-settings"],
+html[data-bb-dark] [class*="NotificationSettings"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* Profile avatar / hero area background */
+html[data-bb-dark] [class*="profile-hero"],
+html[data-bb-dark] [class*="ProfileHero"],
+html[data-bb-dark] [class*="avatar-section"],
+html[data-bb-dark] [class*="user-hero"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* ─── 29. GRADES OVERVIEW PAGE — course cards & empty state boxes ─────────
+   The /ultra/grades page shows a card per course. Inside each card is
+   an empty-state box ("Your recently graded work will appear here") that
+   gets an explicit light background. We kill it here.                    */
+
+html[data-bb-dark] bb-grades-overview,
+html[data-bb-dark] bb-grades-summary,
+html[data-bb-dark] [class*="grades-overview"],
+html[data-bb-dark] [class*="GradesOverview"],
+html[data-bb-dark] [class*="grades-summary"],
+html[data-bb-dark] [class*="GradesSummary"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Empty-state placeholder box "Your recently graded work will appear here" */
+html[data-bb-dark] [class*="empty-state"],
+html[data-bb-dark] [class*="EmptyState"],
+html[data-bb-dark] [class*="empty-grades"],
+html[data-bb-dark] [class*="no-grades"],
+html[data-bb-dark] [class*="placeholder"],
+html[data-bb-dark] [class*="Placeholder"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-muted) !important;
+  border: 1px dashed var(--border-subtle) !important;
+}
+
+/* ─── 30. ACTIVITY STREAM — zero white, zero border, zero surround ────────
+   The expanded row's light surround is a host element wrapping the entire
+   row including the timestamp gutter. We target ALL descendants at every
+   depth to ensure nothing can be light-colored.                           */
+
+/* NUKE STREAM ITEM PSEUDO-ELEMENT BACKGROUNDS
+   Blackboard uses ::before/::after for expanded/active highlights
+   that sit behind the dark container. */
+html[data-bb-dark] .activity-stream li::before,
+html[data-bb-dark] .activity-stream li::after,
+html[data-bb-dark] .activity-group li::before,
+html[data-bb-dark] .activity-group li::after,
+html[data-bb-dark] [class*="stream-item"]::before,
+html[data-bb-dark] [class*="stream-item"]::after,
+html[data-bb-dark] li.stream-item-container::before,
+html[data-bb-dark] li.stream-item-container::after {
+    background-color: transparent !important;
+    background: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+    opacity: 0 !important;
+}
+
+html[data-bb-dark] bb-activity-stream,
+html[data-bb-dark] bb-activity-stream *,
+html[data-bb-dark] bb-stream,
+html[data-bb-dark] bb-stream *,
+html[data-bb-dark] [class*="activity-stream"],
+html[data-bb-dark] [class*="activity-stream"] *,
+html[data-bb-dark] [class*="ActivityStream"],
+html[data-bb-dark] [class*="ActivityStream"] * {
+  background-color: var(--bg-primary) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline-color: transparent !important;
+}
+
+/* The inner content card (dark box with course name + text) stays secondary */
+html[data-bb-dark] bb-activity-stream [class*="card"],
+html[data-bb-dark] bb-activity-stream [class*="Card"],
+html[data-bb-dark] bb-activity-stream [class*="content"],
+html[data-bb-dark] bb-activity-stream article,
+html[data-bb-dark] bb-stream [class*="card"],
+html[data-bb-dark] bb-stream [class*="Card"],
+html[data-bb-dark] bb-stream article {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Hover on the whole row — subtle tertiary, no border flash */
+html[data-bb-dark] bb-activity-stream > *:hover,
+html[data-bb-dark] bb-stream > *:hover,
+html[data-bb-dark] [class*="activity-stream"] > *:hover,
+html[data-bb-dark] [class*="ActivityStream"] > *:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Filter dropdown — dark, no border glow */
+html[data-bb-dark] [class*="filter"],
+html[data-bb-dark] [class*="Filter"],
+html[data-bb-dark] [role="listbox"],
+html[data-bb-dark] [role="option"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+
+html[data-bb-dark] [role="option"]:hover {
+  background-color: var(--accent-primary) !important;
+  color: #fff !important;
+}
+
+
+
+/* ─── 28. ZERO GREY POLICY — global hover & focus overrides ──────────────
+   No grey anywhere, ever. This block overrides every hover/focus/active
+   state across the entire domain with dark theme equivalents.            */
+
+/* Table rows — gradebook, announcements, any data table */
+html[data-bb-dark] tr:hover,
+html[data-bb-dark] tr:hover td,
+html[data-bb-dark] tr:hover th,
+html[data-bb-dark] [role="row"]:hover,
+html[data-bb-dark] [role="row"]:hover [role="cell"],
+html[data-bb-dark] [role="row"]:hover [role="gridcell"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Gradebook-specific row hover */
+html[data-bb-dark] [class*="grade"] tr:hover,
+html[data-bb-dark] [class*="Grade"] tr:hover,
+html[data-bb-dark] [class*="gradebook"] [role="row"]:hover,
+html[data-bb-dark] [class*="Gradebook"] [role="row"]:hover,
+html[data-bb-dark] bb-grades-student [role="row"]:hover,
+html[data-bb-dark] bb-grade-detail [role="row"]:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Every single interactive element hover — links, buttons, divs, lis */
+html[data-bb-dark] a:hover,
+html[data-bb-dark] button:hover,
+html[data-bb-dark] li:hover,
+html[data-bb-dark] [tabindex]:hover,
+html[data-bb-dark] [onclick]:hover,
+html[data-bb-dark] [class*="clickable"]:hover,
+html[data-bb-dark] [class*="Clickable"]:hover,
+html[data-bb-dark] [class*="hoverable"]:hover,
+html[data-bb-dark] [class*="Hoverable"]:hover,
+html[data-bb-dark] [class*="interactive"]:hover,
+html[data-bb-dark] [class*="Interactive"]:hover,
+html[data-bb-dark] [class*="selectable"]:hover,
+html[data-bb-dark] [class*="Selectable"]:hover,
+html[data-bb-dark] [class*="listItem"]:hover,
+html[data-bb-dark] [class*="list-item"]:hover,
+html[data-bb-dark] [class*="ListItem"]:hover,
+html[data-bb-dark] [class*="row"]:hover,
+html[data-bb-dark] [class*="Row"]:hover {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Focus states — keyboard nav should also be dark */
+html[data-bb-dark] tr:focus-within,
+html[data-bb-dark] [role="row"]:focus-within,
+html[data-bb-dark] [class*="row"]:focus-within,
+html[data-bb-dark] [class*="Row"]:focus-within,
+html[data-bb-dark] [class*="listItem"]:focus-within,
+html[data-bb-dark] [class*="ListItem"]:focus-within {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Catch JS-injected hover backgrounds at any grey value (extended range) */
+html[data-bb-dark] *[style*="background-color: rgb(2"],
+html[data-bb-dark] *[style*="background-color: rgb(21"],
+html[data-bb-dark] *[style*="background-color: rgb(22"],
+html[data-bb-dark] *[style*="background-color: rgb(23"],
+html[data-bb-dark] *[style*="background-color: rgb(24"],
+html[data-bb-dark] *[style*="background-color: rgb(25"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Specifically catch the light hover shade Blackboard injects on rows.
+   Typical values: rgb(244,244,244), rgb(240,240,240), rgb(235,235,235)   */
+html[data-bb-dark] *[style*="background-color: rgb(24"],
+html[data-bb-dark] *[style*="background-color: rgb(23"],
+html[data-bb-dark] *[style*="background-color: rgb(22"],
+html[data-bb-dark] *[style*="background-color: rgb(21"],
+html[data-bb-dark] *[style*="background-color: rgb(20"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-main) !important;
+}
+
+html[data-bb-dark] [class*="CourseTabs"],
+html[data-bb-dark] [class*="course-tabs"],
+html[data-bb-dark] [role="tablist"],
+html[data-bb-dark] [class*="TabBar"],
+html[data-bb-dark] [class*="tab-bar"],
+html[data-bb-dark] [class*="tab-list"],
+html[data-bb-dark] [class*="TabList"] {
+  background-color: var(--bg-sidebar) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+html[data-bb-dark] [role="tab"] {
+  background-color: transparent !important;
+  color: var(--text-muted) !important;
+}
+
+html[data-bb-dark] [role="tab"][aria-selected="true"] {
+  color: var(--text-main) !important;
+  border-bottom-color: var(--accent-primary) !important;
+}
+
+/* ─── 23. RIGHT SIDEBAR PANEL — instructor card, roster, books & tools ───── */
+html[data-bb-dark] [class*="CourseSidebar"],
+html[data-bb-dark] [class*="course-sidebar"],
+html[data-bb-dark] [class*="RightPanel"],
+html[data-bb-dark] [class*="right-panel"],
+html[data-bb-dark] [class*="InstructorCard"],
+html[data-bb-dark] [class*="instructor-card"],
+html[data-bb-dark] [class*="DetailPanel"],
+html[data-bb-dark] [class*="detail-panel"],
+html[data-bb-dark] aside,
+html[data-bb-dark] [role="complementary"] {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+}
+
+/* ─── 24. ANNOUNCEMENTS PAGE ─────────────────────────────────────────────── */
+html[data-bb-dark] bb-announcements,
+html[data-bb-dark] [class*="announcement"],
+html[data-bb-dark] [class*="Announcement"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* ─── MESSAGES PAGE TOOLBAR (ABSOLUTE SLEDGEHAMMER) ───────────────────────
+   Blackboard uses a hardcoded .color-override utility class here. 
+   We use maximum specificity to crush it. */
+/* ─── MESSAGES PAGE TOOLBAR (THE CARPET BOMB) ─────────────────────────
+   Blackboard layers white backgrounds on the parent, children, AND uses 
+   invisible ::before pseudo-elements to paint it white. We nuke them all. */
+
+/* Force all physical elements in this tree to be dark */
+html[data-bb-dark] bb-course-conversations,
+html[data-bb-dark] .messages-container,
+html[data-bb-dark] .messages-container.color-override,
+html[data-bb-dark] .messages-header,
+html[data-bb-dark] .messages-header .summary {
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* DESTROY the pseudo-elements injecting the hidden white layers */
+html[data-bb-dark] .messages-container::before,
+html[data-bb-dark] .messages-container::after,
+html[data-bb-dark] .messages-header::before,
+html[data-bb-dark] .messages-header::after {
+  content: none !important;
+  display: none !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+
+/* Add our subtle dark border back so it looks clean */
+html[data-bb-dark] .messages-container {
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+/* Search/filter bar area above the announcements list */
+html[data-bb-dark] [class*="announcement"] [class*="toolbar"],
+html[data-bb-dark] [class*="announcement"] [class*="Toolbar"],
+html[data-bb-dark] [class*="list-toolbar"],
+html[data-bb-dark] [class*="ListToolbar"],
+html[data-bb-dark] [class*="filter-bar"],
+html[data-bb-dark] [class*="FilterBar"] {
+  background-color: var(--bg-primary) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+/* Individual announcement rows — alternate white/dark pattern */
+html[data-bb-dark] [class*="announcement-row"],
+html[data-bb-dark] [class*="AnnouncementRow"],
+html[data-bb-dark] [class*="announcement-item"],
+html[data-bb-dark] [class*="AnnouncementItem"],
+html[data-bb-dark] bb-announcements li,
+html[data-bb-dark] bb-announcements [role="row"],
+html[data-bb-dark] [class*="announcement"] [role="row"],
+html[data-bb-dark] [class*="announcement"] li {
+  background-color: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+}
+
+html[data-bb-dark] [class*="announcement-row"]:hover,
+html[data-bb-dark] [class*="AnnouncementRow"]:hover,
+html[data-bb-dark] bb-announcements li:hover,
+html[data-bb-dark] bb-announcements [role="row"]:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* ─── 25. GLOBAL SWEEP — every web component host element ────────────────
+   Blackboard Ultra is built with Angular web components (bb-*, ultra-*).
+   Each custom element creates a shadow-DOM boundary whose HOST element
+   defaults to white if no background is set. This targets every bb- and
+   ultra- element on the page at once.                                     */
+
+html[data-bb-dark] [class*="bb-"],
+html[data-bb-dark] bb-base,
+html[data-bb-dark] bb-router-outlet,
+html[data-bb-dark] bb-learn-root,
+html[data-bb-dark] bb-ultra-course-outline,
+html[data-bb-dark] bb-course-outline,
+html[data-bb-dark] bb-content-list,
+html[data-bb-dark] bb-announcements-list,
+html[data-bb-dark] bb-discussions-list,
+html[data-bb-dark] bb-calendar,
+html[data-bb-dark] bb-messages,
+html[data-bb-dark] bb-groups,
+html[data-bb-dark] bb-achievements,
+html[data-bb-dark] bb-tools,
+html[data-bb-dark] bb-roster,
+html[data-bb-dark] bb-organizations {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+
+/* Catch ALL custom elements starting with bb- or ultra- using :is()      */
+html[data-bb-dark] *:is(
+  [class^="bb-"], [id^="bb-"],
+  [class^="ultra-"], [id^="ultra-"]
+) {
+  background-color: inherit;
+  color: inherit;
+}
+
+/* ─── 26. ULTIMATE FALLBACK — any element that is explicitly white/light ──
+   This is the final safety net. It uses a CSS filter approach: any element
+   whose computed background would be white or near-white gets overridden.
+   We do this by resetting ALL divs, sections, and list items to inherit,
+   then letting our specific rules (above) set the real values.            */
+
+html[data-bb-dark] div:not([class*="bb-icon"]):not([class*="avatar"]):not([class*="logo"]):not(img),
+html[data-bb-dark] section,
+html[data-bb-dark] article,
+html[data-bb-dark] aside,
+html[data-bb-dark] li,
+html[data-bb-dark] ul,
+html[data-bb-dark] ol {
+  background-color: inherit;
+  color: inherit;
+}
+
+/* Re-assert body so inheritance flows from a dark root */
+html[data-bb-dark] body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+}
+   /*The maroon (#6d1a36 / rgb(109,26,54)) header on the institution page
+   is intentional branding — we keep it but darken it to sit better on
+   a dark page.                                                            */
+html[data-bb-dark] [style*="background-color: rgb(109, 26, 54)"],
+html[data-bb-dark] [style*="background-color: #6d1a36"],
+html[data-bb-dark] [class*="brand-header"],
+html[data-bb-dark] [class*="BrandHeader"] {
+  background-color: #3d0f1e !important; /* darkened maroon */
+  filter: brightness(0.85);
+}

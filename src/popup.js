@@ -3,12 +3,16 @@
  *
  */
 
-const toggle   = document.getElementById('darkToggle');
-const card     = document.getElementById('mainCard');
-const statusEl = document.getElementById('statusText');
+const toggle    = document.getElementById('darkToggle');
+const card      = document.getElementById('mainCard');
+const statusEl  = document.getElementById('statusText');
+const versionEl = document.getElementById('versionTag');
 
 // ─── Normalise browser API (Firefox uses `browser`, Chrome uses `chrome`) ──
 const ext = (typeof browser !== 'undefined') ? browser : chrome;
+
+// ─── Set version from manifest so popup.html never needs manual updates ─────
+versionEl.textContent = `v${ext.runtime.getManifest().version}`;
 
 // ─── Reflect state onto the popup UI ────────────────────────────────────────
 function updateUI(enabled) {

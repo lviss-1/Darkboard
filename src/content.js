@@ -83,16 +83,10 @@ function watchForAttributeStrip() {
 // second — the moment a light color appears, it's gone before the next
 // frame renders to the screen.
 
-const DARK_BG   = '#0a0a0c';
-
-function isLightColor(colorStr) {
-  if (!colorStr || colorStr === 'transparent' || colorStr === 'rgba(0, 0, 0, 0)') return false;
-  const m = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (!m) return false;
-  const [r, g, b] = [+m[1], +m[2], +m[3]];
-  // Pure black variants are fine — only kill greys and whites
-  return (r + g + b) > THRESHOLD && !(r < 30 && g < 30 && b < 30);
-}
+const DARK_BG = '#0a0a0c';
+// A color is "light" if the sum of its RGB channels exceeds this value
+// and it isn't a near-black shade.
+const LIGHT_THRESHOLD = 180;
 
 function enforceStreamDark() {
   if (!document.body) return;
@@ -129,7 +123,7 @@ function enforceStreamDark() {
       const [r, g, b] = [+m[1], +m[2], +m[3]];
       
       // Destroy it if the color is light OR if Blackboard injected a gradient
-      const isLight = r > 40 && g > 40 && b > 40 && (r + g + b) > 180;
+      const isLight = r > 40 && g > 40 && b > 40 && (r + g + b) > LIGHT_THRESHOLD;
       const hasGradient = bgImage && bgImage !== 'none' && bgImage.includes('gradient');
 
       if (isLight || hasGradient) {
@@ -141,20 +135,18 @@ function enforceStreamDark() {
   }
 }
 
-let rafRunning = false;
-function startBackgroundEnforcer() {
-  if (rafRunning) return;
-  rafRunning = true;
-
-  function loop() {
-    enforceStreamDark();
-    requestAnimationFrame(loop);
-  }
-  requestAnimationFrame(loop);
-}
-
 function initStreamBackgroundKiller() {
-  startBackgroundEnforcer();
+  // Run once immediately to catch anything already in the DOM
+  enforceStreamDark();
+
+  // Then re-run only when Blackboard actually mutates the DOM — zero cost at idle
+  const streamObserver = new MutationObserver(() => enforceStreamDark());
+  streamObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style'],
+  });
 }
 
 
@@ -235,22 +227,3 @@ function initGradeColorizer() {
   });
 }
 
-function initGradeColorizer() {
-  // Run once on load
-  colorizeAllGrades();
-
-  // Re-run whenever Blackboard's SPA navigates or loads new grade rows
-  // (MutationObserver watches for new nodes being added to the DOM)
-  const gradeObserver = new MutationObserver((mutations) => {
-    let hasNewNodes = false;
-    for (const m of mutations) {
-      if (m.addedNodes.length > 0) { hasNewNodes = true; break; }
-    }
-    if (hasNewNodes) colorizeAllGrades();
-  });
-
-  gradeObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-}

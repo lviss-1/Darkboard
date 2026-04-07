@@ -189,6 +189,15 @@ function colorizeAllGrades() {
     // Ignore dates (they have two slashes)
     if ((text.match(/\//g) || []).length > 1) return;
 
+    // Skip long strings — grade values are short ("84 / 100"), titles are not
+    if (text.length > 40) return;
+
+    // Skip date/time patterns like "12/5 @ 11:59"
+    if (text.includes('@')) return;
+
+    // Skip elements inside headings (announcement and discussion titles)
+    if (el.closest('h1, h2, h3, h4, h5, h6')) return;
+
     // Catch formats like "95/100", "95 / 100", and "Score: 95 / 100"
     const fractional = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
     const percentage = text.match(/(\d+(?:\.\d+)?)%/);

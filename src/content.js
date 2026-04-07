@@ -203,7 +203,7 @@ function colorizeAllGrades() {
     }
 
     if (pct !== null) {
-      const status = pct >= 90 ? 'good' : pct >= 70 ? 'average' : 'poor';
+      const status = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
       el.dataset.gradeStatus = status;
       el.classList.add('darkboard-pill');
     }

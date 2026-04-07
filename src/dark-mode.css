@@ -105,9 +105,10 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   --accent-glow:      rgba(109, 26, 54, 0.25); /* subtle maroon glow */
 
   /* Grade colors — kept semantic, slightly warmer to match palette */
-  --accent-success:   #4ade80;   /* green  — A grade  */
-  --accent-warn:      #fbbf24;   /* amber  — B/C grade */
-  --accent-danger:    #f87171;   /* red    — D/F grade */
+  --accent-success:   #4ade80;   /* green      — A grade  */
+  --accent-fair:      #a3e635;   /* lime       — B grade  */
+  --accent-warn:      #fbbf24;   /* amber      — C grade  */
+  --accent-danger:    #f87171;   /* red        — D/F grade */
 
   --shadow-card:      0 2px 16px rgba(0, 0, 0, 0.6);
   --shadow-maroon:    0 2px 16px rgba(109, 26, 54, 0.3);
@@ -513,7 +514,14 @@ html[data-bb-dark] .darkboard-pill[data-grade-status="good"] {
   border: 1px solid rgba(74, 222, 128, 0.3) !important;
 }
 
-/* Yellow B/C-Grades */
+/* Lime B-Grades (80–89%) */
+html[data-bb-dark] .darkboard-pill[data-grade-status="fair"] {
+  background-color: rgba(163, 230, 53, 0.15) !important;
+  color: #a3e635 !important;
+  border: 1px solid rgba(163, 230, 53, 0.35) !important;
+}
+
+/* Yellow C-Grades (70–79%) */
 html[data-bb-dark] .darkboard-pill[data-grade-status="average"] {
   background-color: rgba(251, 191, 36, 0.15) !important;
   color: #fbbf24 !important; 
@@ -547,12 +555,18 @@ html[data-bb-dark] [aria-label*="Grade: A"] {
   color: var(--accent-success) !important;
 }
 
+html[data-bb-dark] [data-grade-status="fair"],
+html[data-bb-dark] [class*="grade--fair"],
+html[data-bb-dark] [class*="Grade--fair"],
+html[data-bb-dark] [aria-label*="grade: B"],
+html[data-bb-dark] [aria-label*="Grade: B"] {
+  color: var(--accent-fair) !important;
+}
+
 html[data-bb-dark] [data-grade-status="average"],
 html[data-bb-dark] [class*="grade--average"],
 html[data-bb-dark] [class*="Grade--average"],
-html[data-bb-dark] [aria-label*="grade: B"],
 html[data-bb-dark] [aria-label*="grade: C"],
-html[data-bb-dark] [aria-label*="Grade: B"],
 html[data-bb-dark] [aria-label*="Grade: C"] {
   color: var(--accent-warn) !important;
 }

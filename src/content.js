@@ -189,8 +189,13 @@ function colorizeAllGrades() {
     // Ignore dates (they have two slashes)
     if ((text.match(/\//g) || []).length > 1) return;
 
-    // Skip long strings — grade values are short ("84 / 100"), titles are not
-    if (text.length > 40) return;
+    // Skip long strings — grade values are short ("Score: 95 / 100" = 15 chars max);
+    // anything over 25 chars is almost certainly a title or description, not a score.
+    if (text.length > 25) return;
+
+    // Skip if text contains scheduling/calendar keywords — these signal a date
+    // embedded in an assignment title (e.g. "due by Fri 12/5", "BY FRIDAY 12/5").
+    if (/\b(due|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i.test(text)) return;
 
     // Skip date/time patterns like "12/5 @ 11:59"
     if (text.includes('@')) return;

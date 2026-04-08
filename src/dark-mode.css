@@ -1348,6 +1348,7 @@ html[data-bb-dark] body {
   background-color: var(--bg-primary) !important;
   color: var(--text-main) !important;
 }
+
    /*The maroon (#6d1a36 / rgb(109,26,54)) header on the institution page
    is intentional branding — we keep it but darken it to sit better on
    a dark page.                                                            */

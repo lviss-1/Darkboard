@@ -18,7 +18,7 @@ versionEl.textContent = `v${ext.runtime.getManifest().version}`;
 function updateUI(enabled) {
   toggle.checked = enabled;
   card.classList.toggle('active', enabled);
-  statusEl.textContent = enabled ? 'ACTIVE — ALL TABS' : 'INACTIVE';
+  statusEl.textContent = enabled ? 'ACTIVE — BLACKBOARD TABS' : 'INACTIVE';
 }
 
 // ─── Read current state from storage and render ──────────────────────────────

@@ -14,6 +14,11 @@
 
 const ATTR = 'data-bb-dark';
 
+// ─── Module-level state — single source of truth for this content script ──
+// Kept in sync by init() and the message listener so watchForAttributeStrip
+// can read it synchronously without an async storage round-trip.
+let _darkEnabled = false;
+
 // ─── Helper: apply or remove the dark-mode gate attribute ─────────────────
 function setDarkMode(enabled) {
   if (enabled) {
@@ -35,6 +40,7 @@ function init() {
   storage.local.get('darkModeEnabled', (result) => {
     // Default to TRUE on first install — users expect dark mode to just work
     const enabled = result.darkModeEnabled !== false;
+    _darkEnabled = enabled;
     setDarkMode(enabled);
   });
 }
@@ -46,6 +52,7 @@ const runtime = (typeof browser !== 'undefined') ? browser.runtime : chrome.runt
 
 runtime.onMessage.addListener((message) => {
   if (message.type === 'BB_DARK_MODE_TOGGLE') {
+    _darkEnabled = message.enabled;
     setDarkMode(message.enabled);
   }
 });
@@ -53,17 +60,14 @@ runtime.onMessage.addListener((message) => {
 // ─── Step 3: Guard against Blackboard's own JS removing our attribute ─────
 // Blackboard's SPA sometimes re-renders <html>. A MutationObserver acts like
 // a security guard — if our attribute gets removed, it puts it right back.
+// We read _darkEnabled synchronously instead of doing an async storage lookup,
+// which avoids a race condition where the user could toggle off between the
+// observer firing and the callback completing.
 function watchForAttributeStrip() {
   const observer = new MutationObserver(() => {
-    const shouldBeDark = document.documentElement.hasAttribute(ATTR);
-    // Re-check storage and re-apply if needed
-    const storage = (typeof browser !== 'undefined') ? browser.storage : chrome.storage;
-    storage.local.get('darkModeEnabled', (result) => {
-      const enabled = result.darkModeEnabled !== false;
-      if (enabled && !shouldBeDark) {
-        setDarkMode(true);
-      }
-    });
+    if (_darkEnabled && !document.documentElement.hasAttribute(ATTR)) {
+      setDarkMode(true);
+    }
   });
 
   observer.observe(document.documentElement, {
@@ -78,10 +82,10 @@ function watchForAttributeStrip() {
 // Blackboard applies it via a high-specificity class added to the host
 // element, not an inline style.
 //
-// Solution: a requestAnimationFrame loop that runs every frame and force-
-// paints any light element dark. Like a security guard doing rounds every
-// second — the moment a light color appears, it's gone before the next
-// frame renders to the screen.
+// Solution: a MutationObserver that fires whenever Blackboard mutates class
+// or style attributes. Only re-runs enforceStreamDark() when the DOM actually
+// changes — zero CPU cost at idle. Debounced with requestAnimationFrame so
+// rapid SPA re-renders collapse into a single pass per animation frame.
 
 const DARK_BG = '#0a0a0c';
 // A color is "light" if the sum of its RGB channels exceeds this value
@@ -139,8 +143,18 @@ function initStreamBackgroundKiller() {
   // Run once immediately to catch anything already in the DOM
   enforceStreamDark();
 
-  // Then re-run only when Blackboard actually mutates the DOM — zero cost at idle
-  const streamObserver = new MutationObserver(() => enforceStreamDark());
+  // Debounce with rAF: coalesces rapid SPA mutations into one pass per frame.
+  // getComputedStyle inside enforceStreamDark() is expensive — we don't want
+  // it running dozens of times per second during Blackboard's React re-renders.
+  let rafPending = false;
+  const streamObserver = new MutationObserver(() => {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      enforceStreamDark();
+    });
+  });
   streamObserver.observe(document.body, {
     childList: true,
     subtree: true,
@@ -227,17 +241,25 @@ function colorizeAllGrades() {
 function initGradeColorizer() {
   colorizeAllGrades();
 
-  // Supercharged Observer: By adding 'characterData: true' and removing 
-  // the addedNodes check, we force the script to evaluate grades even 
-  // when Angular silently rewrites the text in the table cells.
+  // characterData: true catches Angular silently rewriting text in table cells.
+  // Debounced with rAF: colorizeAllGrades queries all span/div/td elements which
+  // can number in the thousands on a Blackboard page. Without debouncing, rapid
+  // DOM mutations (keystrokes, React reconciles) trigger back-to-back full-DOM
+  // scans. rAF collapses them into at most one scan per animation frame.
+  let rafPending = false;
   const gradeObserver = new MutationObserver(() => {
-    colorizeAllGrades();
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      colorizeAllGrades();
+    });
   });
 
   gradeObserver.observe(document.body, {
     childList: true,
     subtree: true,
-    characterData: true 
+    characterData: true,
   });
 }
 

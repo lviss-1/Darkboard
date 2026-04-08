@@ -4,9 +4,38 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Blackboard Dark Mode</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Self-hosted fonts — no network requests, works offline, no flash of fallback font.
+       font-display: block chosen over swap to avoid layout shift in a short-lived popup. */
+    @font-face {
+      font-family: 'DM Mono';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('src/fonts/dm-mono-400.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'DM Mono';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('src/fonts/dm-mono-500.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Syne';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('src/fonts/syne-700.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Syne';
+      font-style: normal;
+      font-weight: 800;
+      font-display: block;
+      src: url('src/fonts/syne-800.woff2') format('woff2');
+    }
+  </style>
   <style>
     /* ── Tokens ─────────────────────────────────────────── */
     :root {
@@ -172,6 +201,12 @@
       box-shadow: 0 0 10px rgba(92, 124, 250, 0.6);
     }
 
+    /* Keyboard focus ring — only visible for keyboard nav, suppressed for mouse clicks */
+    .switch input:focus-visible + .track {
+      outline: 2px solid #5c7cfa;
+      outline-offset: 3px;
+    }
+
     /* ── Status indicator ───────────────────────────────────── */
     .status-row {
       margin-top: 14px;
@@ -260,8 +295,8 @@
         <div class="toggle-title">DARK MODE</div>
         <div class="toggle-subtitle">All Blackboard Ultra pages</div>
       </div>
-      <label class="switch" aria-label="Toggle dark mode">
-        <input type="checkbox" id="darkToggle" />
+      <label class="switch">
+        <input type="checkbox" id="darkToggle" aria-label="Toggle dark mode" />
         <span class="track"></span>
       </label>
     </div>

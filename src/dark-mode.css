@@ -293,6 +293,7 @@ html[data-bb-dark] [role="banner"] {
   background-color: var(--bg-sidebar) !important;
   border-bottom: 1px solid var(--border-subtle) !important;
   box-shadow: none !important;
+  color: var(--text-heading) !important;
 }
 
 /* ─── 6. CARDS & PANELS ─────────────────────────────────────────────────── */

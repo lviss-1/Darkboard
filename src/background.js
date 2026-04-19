@@ -24,10 +24,8 @@ function restoreBadge() {
   });
 }
 
-// Runs unconditionally on every service worker (re)start
 restoreBadge();
 
-// ─── On browser startup: repaint badge from storage ────────────────────────
 chrome.runtime.onStartup.addListener(restoreBadge);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -35,23 +33,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const { enabled } = message;
 
-  // ─── Broadcast to all matching tabs ────────────────────────────────────
   chrome.tabs.query({ url: BB_ORIGINS }, (tabs) => {
     for (const tab of tabs) {
       chrome.tabs.sendMessage(tab.id, message).catch(() => {
-        // Tab may not have the content script yet (e.g., still loading) — safe to ignore
       });
     }
   });
 
-  // ─── Update the action badge ────────────────────────────────────────────
   chrome.action.setBadgeText({ text: enabled ? 'ON' : '' });
   chrome.action.setBadgeBackgroundColor({ color: enabled ? '#5c7cfa' : '#666' });
 
   sendResponse({ ok: true });
 });
 
-// ─── On install: set default storage value and paint badge ─────────────────
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get('darkModeEnabled', (result) => {
     if (result.darkModeEnabled === undefined) {

@@ -2,7 +2,6 @@
  * content.js — Blackboard Ultra Dark Mode
  *
  * Runs at document_start (before any HTML is painted) to prevent FOUC.
- * I will be using these notes to make sure I can look back at any function I may need to change in the future
  *
  * Flow:
  *   1. Immediately read storage for the saved preference.
@@ -14,12 +13,10 @@
 
 const ATTR = 'data-bb-dark';
 
-// ─── Module-level state — single source of truth for this content script ──
 // Kept in sync by init() and the message listener so watchForAttributeStrip
 // can read it synchronously without an async storage round-trip.
 let _darkEnabled = false;
 
-// ─── Helper: apply or remove the dark-mode gate attribute ─────────────────
 function setDarkMode(enabled) {
   if (enabled) {
     document.documentElement.setAttribute(ATTR, '');
@@ -45,9 +42,6 @@ function init() {
   });
 }
 
-// ─── Step 2: Listen for toggle messages from popup.js ─────────────────────
-// When the user flips the switch in the popup, popup.js broadcasts a message
-// to ALL matching tabs (including iframes via all_frames: true).
 const runtime = (typeof browser !== 'undefined') ? browser.runtime : chrome.runtime;
 
 runtime.onMessage.addListener((message) => {
@@ -126,7 +120,6 @@ function enforceStreamDark() {
     if (m) {
       const [r, g, b] = [+m[1], +m[2], +m[3]];
       
-      // Destroy it if the color is light OR if Blackboard injected a gradient
       const isLight = r > 40 && g > 40 && b > 40 && (r + g + b) > LIGHT_THRESHOLD;
       const hasGradient = bgImage && bgImage !== 'none' && bgImage.includes('gradient');
 
@@ -140,7 +133,6 @@ function enforceStreamDark() {
 }
 
 function initStreamBackgroundKiller() {
-  // Run once immediately to catch anything already in the DOM
   enforceStreamDark();
 
   // Debounce with rAF: coalesces rapid SPA mutations into one pass per frame.
@@ -165,10 +157,8 @@ function initStreamBackgroundKiller() {
 
 
 
-// ─── Boot ──────────────────────────────────────────────────────────────────
 init();
 
-// Wait for DOM to be available before setting up the observer
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     watchForAttributeStrip();
@@ -181,20 +171,12 @@ if (document.readyState === 'loading') {
   initStreamBackgroundKiller();
 }
 
-// ─── Grade Colorizer ───────────────────────────────────────────────────────
-// CSS cannot do arithmetic, so we use JS to read "63 / 65" style grade
-// strings, calculate the percentage, and stamp a data attribute that our
-// CSS rules can target for green / yellow / red coloring.
-//
-// Analogy: CSS is the painter, JS is the foreman who reads the blueprint
-// and tells the painter which color goes where.
-
+// CSS cannot do arithmetic, so we use JS to read grade strings, calculate
+// the percentage, and stamp a data attribute that CSS rules can target.
 function colorizeAllGrades() {
-  // Grab all spans, divs, and table cells, and reverse the list.
   const elements = Array.from(document.querySelectorAll('span, div, td')).reverse();
 
   elements.forEach(el => {
-    // Skip parent wrappers if we already pillified a child inside them
     if (el.querySelector('.darkboard-pill')) return;
 
     // Squash hidden newlines and tabs into single spaces for the regex
@@ -217,7 +199,6 @@ function colorizeAllGrades() {
     // Skip elements inside headings (announcement and discussion titles)
     if (el.closest('h1, h2, h3, h4, h5, h6')) return;
 
-    // Catch formats like "95/100", "95 / 100", and "Score: 95 / 100"
     const fractional = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
     const percentage = text.match(/(\d+(?:\.\d+)?)%/);
 

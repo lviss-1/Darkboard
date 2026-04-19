@@ -2,7 +2,6 @@
  * dark-mode.css — Blackboard Ultra Dark Theme
  * Injected at document_start to prevent FOUC.
  * All colours are driven by CSS variables — edit the :root block to retheme.
- * I will be using these notes as a reference for future me in case anything ever goes down/change something and I need to look at the code
  *
  * Architecture note:
  *   • :root defines the palette.
@@ -63,17 +62,15 @@ html[data-bb-dark] [class*="MuiPaper"] {
   background-color: var(--bg-secondary) !important;
   background: var(--bg-secondary) !important;
   border: 1px solid var(--border-subtle) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8) !important; /* Adds a nice drop shadow */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8) !important;
 }
 
-/* Fix the individual list items inside the dropdown */
 html[data-bb-dark] [class*="MuiMenuItemroot"],
 html[data-bb-dark] [class*="MuiMenuItem"] {
   background-color: transparent !important;
   color: var(--text-main) !important;
 }
 
-/* Add a hover effect for the menu items */
 html[data-bb-dark] [class*="MuiMenuItemroot"]:hover,
 html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   background-color: var(--bg-tertiary) !important;
@@ -505,7 +502,7 @@ html[data-bb-dark] .darkboard-pill {
   font-weight: 700 !important;
   letter-spacing: 0.02em !important;
   white-space: nowrap !important;
-  width: max-content !important; /* Forces the pill to shrink-wrap the numbers */
+  width: max-content !important;
 }
 
 /* Green A-Grades */

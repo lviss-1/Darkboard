@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — activity stream</title>
+
+  <!-- The real theme under test. -->
+  <link rel="stylesheet" href="../src/dark-mode.css" />
+
+  <style>
+    /* Stands in for Blackboard's own stylesheet.
+       The id raises specificity to (1,2,1), above anything in dark-mode.css,
+       which reproduces the condition the stream killer exists for: a light
+       background that CSS alone cannot override, forcing the JS to write an
+       inline style. That inline style is what the toggle-off path must undo. */
+    #stream-root li.stream-item-container {
+      background-color: #ffffff !important;
+      color: #262626;
+    }
+
+    #stream-root .stream-item {
+      padding: 12px;
+    }
+
+    /* A plain region the stream selectors do not match — it must never be
+       marked or modified by the extension. */
+    .control-region {
+      background-color: #ffffff;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="stream-root" class="base-recent-activity">
+    <div class="activity-stream">
+      <ul class="activity-group js-previousStreamEntries">
+        <li class="stream-item-container notification-default" id="row-1">
+          <div class="stream-item angular-animate">
+            <span>Assignment graded — 47 / 50</span>
+          </div>
+        </li>
+        <li class="stream-item-container notification-default" id="row-2">
+          <div class="stream-item angular-animate">
+            <span>New announcement posted</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="control-region" id="control">Not part of the activity stream.</div>
+
+  <script>
+    // Minimal stand-in for the extension APIs content.js depends on.
+    // Only `chrome` is defined, never `browser`, so content.js takes the
+    // Chrome branch at both of its API-selection points.
+    (function () {
+      const initialEnabled = !new URLSearchParams(location.search).has('off');
+      const listeners = [];
+
+      window.chrome = {
+        storage: {
+          local: {
+            // Deliberately async, to mirror the real storage round-trip and
+            // exercise the DOMContentLoaded ordering in content.js.
+            get(_key, cb) {
+              setTimeout(() => cb({ darkModeEnabled: initialEnabled }), 0);
+            },
+            set() {},
+          },
+        },
+        runtime: {
+          onMessage: {
+            addListener(fn) { listeners.push(fn); },
+          },
+        },
+      };
+
+      window.__fireToggle = function (enabled) {
+        listeners.forEach(fn => fn({ type: 'BB_DARK_MODE_TOGGLE', enabled }));
+      };
+
+      window.__probe = function () {
+        const row = document.getElementById('row-1');
+        return {
+          gated: document.documentElement.hasAttribute('data-bb-dark'),
+          marked: document.querySelectorAll('[data-darkboard-bg]').length,
+          inlineBg: row.style.backgroundColor,
+          computedBg: getComputedStyle(row).backgroundColor,
+          controlMarked: document.getElementById('control').hasAttribute('data-darkboard-bg'),
+        };
+      };
+    })();
+  </script>
+
+  <script src="../src/content.js"></script>
+</body>
+</html>

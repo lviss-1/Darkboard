@@ -238,6 +238,39 @@ since assistive technology depends on them.
 | `article`, `aside`, `[role="region"]`, `Card__` | resolve to the card fill |
 | `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`, MUI paper | resolve to the raised fill |
 
+## fixture-hover.html
+
+Covers which elements the zero-grey block treats as hoverable, and the anchors
+Blackboard styles as buttons.
+
+Synthesising a real pointer hover is unreliable, so the fixture asks the
+cascade directly. For every rule whose selector contains `:hover` it strips the
+`:hover` and tests `element.matches()` against the remainder, which is exactly
+the set of rules that would apply while hovered. The comma split respects
+nesting depth, since a comma inside `:is()` or `:has()` is not a selector
+boundary.
+
+`?css=` points at an alternative stylesheet, which is how a change gets
+compared against the version before it:
+
+```bash
+git show HEAD:src/dark-mode.css > test/.tmp-old.css
+```
+
+| Element | Expected |
+|---|---|
+| Plain `<li>` bullet | no hover background rule |
+| `<li>` containing a link, `<li role>` | a hover background rule applies |
+| `arrow-icon`, `narrow-column`, `grow-wrap` | no hover background rule |
+| `table-row`, `DataRow`, `[role="row"]` | a hover background rule applies |
+| `tabindex="-1"` | no hover background rule |
+| `tabindex="0"` | a hover background rule applies |
+| Inline `<a>` | no hover background, hover colour resolves to `--text-link-hover` |
+
+Against the previous stylesheet every one of those "no hover" elements had a
+hover background, and the inline link matched two colour rules with
+`--text-main` winning, which is why the link hover token never applied.
+
 ## contrast.js
 
 Shared WCAG luminance and contrast helper, loaded by the fixtures that assert

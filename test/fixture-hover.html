@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — hover and link buttons</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      // ?css= points at an alternative stylesheet, which is how a change gets
+      // compared against the version before it.
+      const sheet = new URLSearchParams(location.search).get('css') || '../src/dark-mode.css';
+      link.href = sheet + '?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <ul>
+    <li id="li-plain">A bullet in course content</li>
+    <li id="li-link"><a href="#">A nav entry</a></li>
+    <li id="li-role" role="option">An option</li>
+  </ul>
+
+  <!-- Words that contain "row" but are not rows. -->
+  <div id="d-arrow" class="arrow-icon">arrow</div>
+  <div id="d-narrow" class="narrow-column">narrow</div>
+  <div id="d-grow" class="grow-wrap">grow</div>
+
+  <div id="d-row-kebab" class="table-row">table-row</div>
+  <div id="d-row-caps" class="DataRow">DataRow</div>
+  <div id="d-row-role" role="row">role row</div>
+
+  <div id="d-tab-inert" tabindex="-1">programmatically focusable only</div>
+  <div id="d-tab-real" tabindex="0">keyboard reachable</div>
+
+  <p>Prose with <a id="a-inline" href="#">an inline link</a> in it.</p>
+
+  <script>
+    // A comma inside :is() or :has() is not a selector boundary, so the split
+    // has to respect nesting depth.
+    function splitSelectors(text) {
+      const parts = [];
+      let depth = 0;
+      let current = '';
+      for (const ch of text) {
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (ch === ',' && depth === 0) {
+          parts.push(current);
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      if (current.trim()) parts.push(current);
+      return parts.map(s => s.trim());
+    }
+
+    // Synthesising a real pointer hover is unreliable, so ask the cascade
+    // instead: strip :hover from each selector and test whether the element
+    // matches what remains. That is exactly the set of rules that would apply
+    // while hovered.
+    function hoverRules(el) {
+      return [...document.styleSheets]
+        .flatMap(sheet => { try { return [...sheet.cssRules]; } catch (e) { return []; } })
+        .filter(rule => rule.selectorText && rule.selectorText.includes(':hover'))
+        .filter(rule => splitSelectors(rule.selectorText).some(sel => {
+          if (!sel.includes(':hover')) return false;
+          try { return el.matches(sel.replace(/:hover/g, '')); } catch (e) { return false; }
+        }));
+    }
+
+    window.__hoverBackground = function (id) {
+      const rules = hoverRules(document.getElementById(id)).filter(r => r.style.backgroundColor);
+      return { count: rules.length, selectors: rules.map(r => r.selectorText.slice(0, 70)) };
+    };
+
+    window.__hoverColors = function (id) {
+      return hoverRules(document.getElementById(id))
+        .filter(r => r.style.color)
+        .map(r => r.style.color);
+    };
+
+    window.__probe = function (id) {
+      const cs = getComputedStyle(document.getElementById(id));
+      return {
+        color: cs.color,
+        background: cs.backgroundColor,
+        borderWidth: cs.borderTopWidth,
+      };
+    };
+  </script>
+</body>
+</html>

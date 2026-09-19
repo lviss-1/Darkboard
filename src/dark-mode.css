@@ -1163,11 +1163,19 @@ html[data-bb-dark] bb-grade-detail [role="row"]:hover {
   background-color: var(--bg-tertiary) !important;
 }
 
-/* Every single interactive element hover — links, buttons, divs, lis */
-html[data-bb-dark] a:hover,
-html[data-bb-dark] button:hover,
-html[data-bb-dark] li:hover,
-html[data-bb-dark] [tabindex]:hover,
+/* Hover for things that are actually clickable.
+
+   Links and buttons are deliberately absent. Both have their own sections, and
+   listing `a` here meant --text-link-hover never applied at all, since this
+   block is later in the file at equal specificity — every inline link in prose
+   got a grey slab instead. The two button rules in section 8 are (0,3,2) and
+   between them match every button, so `button` here was already dead.
+
+   A bare `li` matched every bullet in course content, so a list item now needs
+   to show some sign of being interactive. */
+html[data-bb-dark] li:has(> a):hover,
+html[data-bb-dark] li[role]:hover,
+html[data-bb-dark] [tabindex]:not([tabindex="-1"]):hover,
 html[data-bb-dark] [onclick]:hover,
 html[data-bb-dark] [class*="clickable"]:hover,
 html[data-bb-dark] [class*="Clickable"]:hover,
@@ -1180,7 +1188,10 @@ html[data-bb-dark] [class*="Selectable"]:hover,
 html[data-bb-dark] [class*="listItem"]:hover,
 html[data-bb-dark] [class*="list-item"]:hover,
 html[data-bb-dark] [class*="ListItem"]:hover,
-html[data-bb-dark] [class*="row"]:hover,
+/* Not [class*="row"]: it also matches arrow, narrow, grow, browser, throw,
+   borrow and rowspan. [role="row"] is handled by its own rule above. */
+html[data-bb-dark] [class*="-row"]:hover,
+html[data-bb-dark] [class*="_row"]:hover,
 html[data-bb-dark] [class*="Row"]:hover {
   background-color: var(--bg-tertiary) !important;
   color: var(--text-main) !important;
@@ -1189,7 +1200,8 @@ html[data-bb-dark] [class*="Row"]:hover {
 /* Focus states — keyboard nav should also be dark */
 html[data-bb-dark] tr:focus-within,
 html[data-bb-dark] [role="row"]:focus-within,
-html[data-bb-dark] [class*="row"]:focus-within,
+html[data-bb-dark] [class*="-row"]:focus-within,
+html[data-bb-dark] [class*="_row"]:focus-within,
 html[data-bb-dark] [class*="Row"]:focus-within,
 html[data-bb-dark] [class*="listItem"]:focus-within,
 html[data-bb-dark] [class*="ListItem"]:focus-within {

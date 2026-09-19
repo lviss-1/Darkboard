@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — override targeting</title>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      const sheet = new URLSearchParams(location.search).get('css') || '../src/dark-mode.css';
+      link.href = sheet + '?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <div class="course-filter">
+    <label><span id="filter-label-span">Term</span></label>
+  </div>
+
+  <!-- A light background Blackboard would inline; the catcher should darken it. -->
+  <div id="inline-light" style="background-color: rgb(245, 245, 245)">light</div>
+
+  <!-- Already dark. Prefix matching cannot tell this from rgb(200, 200, 200),
+       so it is caught too; the assertion records that it stays dark. -->
+  <div id="inline-dark" style="background-color: rgb(20, 20, 20)">dark</div>
+
+  <script>
+    window.__rules = function () {
+      return [...document.styleSheets]
+        .flatMap(sheet => { try { return [...sheet.cssRules]; } catch (e) { return []; } })
+        .filter(rule => rule.selectorText);
+    };
+
+    window.__selectorsContaining = function (needle) {
+      return window.__rules()
+        .map(r => r.selectorText)
+        .filter(text => text.includes(needle));
+    };
+
+    // A bare `h` type selector is the signature of the stray character: the
+    // comma closed the previous selector, so the h bound to the next line.
+    window.__bareTypeSelectors = function () {
+      return window.__rules()
+        .flatMap(r => r.selectorText.split(','))
+        .map(s => s.trim())
+        .filter(s => /^h\s/.test(s));
+    };
+
+    window.__probe = function (id) {
+      const cs = getComputedStyle(document.getElementById(id));
+      return { background: cs.backgroundColor, color: cs.color };
+    };
+
+    window.__token = function (name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    };
+  </script>
+</body>
+</html>

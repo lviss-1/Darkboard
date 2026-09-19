@@ -348,7 +348,7 @@ html[data-bb-dark] bb-select [class*="label"],
 html[data-bb-dark] bb-select label span,
 html[data-bb-dark] bb-course-filter label,
 html[data-bb-dark] bb-course-filter [class*="label"],
-html[data-bb-dark] [class*="filter"] label,h
+html[data-bb-dark] [class*="filter"] label,
 html[data-bb-dark] [class*="filter"] label span,
 html[data-bb-dark] [class*="dropdown"] label,
 html[data-bb-dark] [class*="select"] label,
@@ -1241,24 +1241,24 @@ html[data-bb-dark] [class*="ListItem"]:focus-within {
   background-color: var(--bg-tertiary) !important;
 }
 
-/* Catch JS-injected hover backgrounds at any grey value (extended range) */
-html[data-bb-dark] *[style*="background-color: rgb(2"],
+/* A net for the light hover shade Blackboard injects inline on rows, e.g.
+   rgb(244, 244, 244) or rgb(235, 235, 235). Section 17 lists the common exact
+   values; this catches the rest.
+
+   Prefix matching cannot tell rgb(20, 20, 20) from rgb(200, 200, 200), and
+   spelling out all 56 light values would be worse than the ambiguity. Forcing
+   an already near-black inline value to --bg-tertiary moves it about ten units,
+   which is imperceptible, so the failure is bounded in the safe direction.
+
+   There is deliberately no "rgb(2" here. As a substring it matches every red
+   channel starting with 2, from rgb(2, through rgb(255,, which is most of the
+   colour space rather than the light greys this is aiming at. */
+html[data-bb-dark] *[style*="background-color: rgb(20"],
 html[data-bb-dark] *[style*="background-color: rgb(21"],
 html[data-bb-dark] *[style*="background-color: rgb(22"],
 html[data-bb-dark] *[style*="background-color: rgb(23"],
 html[data-bb-dark] *[style*="background-color: rgb(24"],
 html[data-bb-dark] *[style*="background-color: rgb(25"] {
-  background-color: var(--bg-secondary) !important;
-  color: var(--text-main) !important;
-}
-
-/* Specifically catch the light hover shade Blackboard injects on rows.
-   Typical values: rgb(244,244,244), rgb(240,240,240), rgb(235,235,235)   */
-html[data-bb-dark] *[style*="background-color: rgb(24"],
-html[data-bb-dark] *[style*="background-color: rgb(23"],
-html[data-bb-dark] *[style*="background-color: rgb(22"],
-html[data-bb-dark] *[style*="background-color: rgb(21"],
-html[data-bb-dark] *[style*="background-color: rgb(20"] {
   background-color: var(--bg-tertiary) !important;
   color: var(--text-main) !important;
 }

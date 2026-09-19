@@ -107,6 +107,32 @@ The cell case matters because the pill sets `display: inline-flex`, which
 collapses a cell and breaks the row. Block hosts get the status attribute only
 and render as coloured bold text through rules already in the stylesheet.
 
+## fixture-buttons.html
+
+Covers section 8. The theme used to give every non-primary button a filled grey
+box with a border, which turned close buttons, kebab menus and chevrons into
+chips. Labelled buttons are now outline only and icon-only controls are flat.
+
+`svg:only-child` is what separates the two, since Blackboard wraps button text
+in its own span and a labelled button therefore has two element children. The
+fixture records the known limitation: a bare text node beside an icon still
+counts as icon-only, because `:only-child` ignores text nodes.
+
+The outline color is asserted by measured ratio, not by value. WCAG 1.4.11 asks
+for 3:1 against the adjacent surface for a component boundary, and
+`--border-strong` managed only 1.47:1, which is why `--border-interactive`
+exists.
+
+| Case | Expected |
+|---|---|
+| Icon-only, `<svg>` sole child | transparent, no border |
+| Class containing `icon` | transparent, no border |
+| `[role="button"]` with an icon class | transparent, no border |
+| Bare text beside an icon | transparent, no border (known limitation) |
+| Text button, text-and-icon, `Button--secondary` | transparent, 1px solid border |
+| Text button border vs page | at least 3:1 |
+| Primary button | maroon fill, unchanged |
+
 ## fixture-perf.html
 
 Measures what the grade and stream passes cost on a large page.
@@ -152,6 +178,12 @@ assertion and the perf fixture reports a meaningless zero. Both pages shim
 `requestAnimationFrame` onto `setTimeout` when `document.hidden` is set. The
 shim uses a zero delay rather than 16 ms so a frame floor does not swamp the
 work being measured.
+
+## contrast.js
+
+Shared WCAG luminance and contrast helper, loaded by the fixtures that assert
+accessibility thresholds. Ratios are computed from whatever the page actually
+renders, so the assertions keep their meaning if the palette is retuned.
 
 ## A note on caching
 

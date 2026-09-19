@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — buttons</title>
+
+  <script src="contrast.js"></script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Icon-only: the control that should never carry an outline. -->
+  <button id="b-icon"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2 L14 14" /></svg></button>
+
+  <!-- Icon-only signalled by class name instead of structure. -->
+  <button id="b-icon-class" class="bb-icon-button"><svg width="16" height="16"></svg></button>
+
+  <!-- Labelled buttons keep the outline. -->
+  <button id="b-text">Save draft</button>
+  <button id="b-text-icon"><svg width="16" height="16"></svg><span>Download</span></button>
+  <button id="b-secondary" class="Button--secondary">Cancel</button>
+
+  <button id="b-primary" class="bb-button-primary">Submit</button>
+
+  <div id="b-role" role="button" class="icon-close"></div>
+
+  <!-- Known limitation: a bare text node beside an icon still counts as
+       icon-only, because :only-child ignores text nodes. Asserted so the
+       behaviour is recorded rather than discovered later. -->
+  <button id="b-bare-text-icon"><svg width="16" height="16"></svg>Print</button>
+
+  <script>
+    window.__probe = function (id) {
+      const cs = getComputedStyle(document.getElementById(id));
+      return {
+        background: cs.backgroundColor,
+        borderWidth: cs.borderTopWidth,
+        borderStyle: cs.borderTopStyle,
+        borderColor: cs.borderTopColor,
+        pageBackground: getComputedStyle(document.body).backgroundColor,
+      };
+    };
+  </script>
+</body>
+</html>

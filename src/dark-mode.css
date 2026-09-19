@@ -94,6 +94,10 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   /* Borders — dark and invisible by default, maroon only on focus */
   --border-subtle:    #1e1e24;   /* near-invisible dividers */
   --border-strong:    #2e2e38;   /* slightly visible borders */
+  /* Outline for interactive controls. WCAG 1.4.11 wants 3:1 against the
+     adjacent surface for a component boundary; this measures 3.21:1 on
+     --bg-primary, where --border-strong manages only 1.47:1. */
+  --border-interactive: #606070;
   --border-focus:     #6d1a36;   /* maroon — ONLY on focused inputs */
 
   /* Iona Maroon accent system */
@@ -372,16 +376,47 @@ html[data-bb-dark] [class*="Button--primary"]:hover {
   background-color: var(--accent-hover) !important;
 }
 
+/* Outline rather than a filled slab. A permanent grey fill on every button is
+   the clearest sign the page is themed from outside. */
 html[data-bb-dark] button:not([class*="primary"]),
 html[data-bb-dark] [class*="Button--secondary"] {
-  background-color: var(--bg-tertiary) !important;
+  background-color: transparent !important;
   color: var(--text-main) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border: 1px solid var(--border-interactive) !important;
 }
 
-html[data-bb-dark] button:not([class*="primary"]):hover {
+html[data-bb-dark] button:not([class*="primary"]):hover,
+html[data-bb-dark] [class*="Button--secondary"]:hover {
+  background-color: var(--bg-tertiary) !important;
   border-color: var(--accent-primary) !important;
   color: var(--text-heading) !important;
+}
+
+/* Icon-only controls: close, kebab, chevrons, nav arrows. An outline around
+   these reads as a chip rather than an icon. svg:only-child is what separates
+   them from a labelled button, since Blackboard wraps button text in its own
+   span, leaving a labelled button with two element children.
+
+   Specificity: the rule above is (0,2,2), so every selector here has to clear
+   it. :not() and :has() each contribute their argument's specificity, which is
+   what lifts these past it rather than relying on source order. */
+html[data-bb-dark] body button:not([class*="primary"]):has(> svg:only-child),
+html[data-bb-dark] body button:not([class*="primary"]):has(> i:only-child),
+html[data-bb-dark] body button[class*="icon"],
+html[data-bb-dark] body button[class*="Icon"],
+html[data-bb-dark] body [role="button"][class*="icon"],
+html[data-bb-dark] body [role="button"][class*="Icon"] {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+html[data-bb-dark] body button:not([class*="primary"]):has(> svg:only-child):hover,
+html[data-bb-dark] body button:not([class*="primary"]):has(> i:only-child):hover,
+html[data-bb-dark] body button[class*="icon"]:hover,
+html[data-bb-dark] body button[class*="Icon"]:hover,
+html[data-bb-dark] body [role="button"][class*="icon"]:hover,
+html[data-bb-dark] body [role="button"][class*="Icon"]:hover {
+  background-color: var(--bg-tertiary) !important;
 }
 
 /* ─── 9. TABLES ─────────────────────────────────────────────────────────── */

@@ -30,7 +30,36 @@
        so it is caught too; the assertion records that it stays dark. -->
   <div id="inline-dark" style="background-color: rgb(20, 20, 20)">dark</div>
 
+  <!-- Layout table: no header row, no role. Striping it reads as a fault. -->
+  <table id="layout-table">
+    <tr><td>one</td></tr>
+    <tr><td id="layout-even">two</td></tr>
+  </table>
+
+  <table id="data-table">
+    <thead><tr><th>Assignment</th></tr></thead>
+    <tbody>
+      <tr><td>one</td></tr>
+      <tr><td id="data-even">two</td></tr>
+    </tbody>
+  </table>
+
+  <div role="grid">
+    <table>
+      <tr><td>one</td></tr>
+      <tr><td id="grid-even">two</td></tr>
+    </table>
+  </div>
+
+  <!-- aria-expanded marks the trigger, not the panel it opens. -->
+  <button id="expanded-trigger" aria-expanded="true">Open menu</button>
+  <div id="selected-item" aria-selected="true">Selected item</div>
+
   <script>
+    window.__rowBackground = function (cellId) {
+      return getComputedStyle(document.getElementById(cellId).closest('tr')).backgroundColor;
+    };
+
     window.__rules = function () {
       return [...document.styleSheets]
         .flatMap(sheet => { try { return [...sheet.cssRules]; } catch (e) { return []; } })

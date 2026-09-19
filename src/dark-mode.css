@@ -471,7 +471,9 @@ html[data-bb-dark] th {
   border-bottom: 1px solid var(--border-strong) !important;
 }
 
-html[data-bb-dark] tr:nth-child(even) {
+html[data-bb-dark] [role="grid"] tr:nth-child(even),
+html[data-bb-dark] [role="table"] tr:nth-child(even),
+html[data-bb-dark] table:has(thead) tr:nth-child(even) {
   background-color: var(--bg-tertiary) !important;
 }
 
@@ -933,7 +935,6 @@ html[data-bb-dark] [class*="selected-row"],
 html[data-bb-dark] [class*="SelectedRow"],
 html[data-bb-dark] [class*="active-row"],
 html[data-bb-dark] [class*="ActiveRow"],
-html[data-bb-dark] [aria-expanded="true"],
 html[data-bb-dark] [aria-selected="true"] {
   background-color: var(--bg-secondary) !important;
   color: var(--text-main) !important;

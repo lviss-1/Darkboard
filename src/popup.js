@@ -8,9 +8,7 @@ const card      = document.getElementById('mainCard');
 const statusEl  = document.getElementById('statusText');
 const versionEl = document.getElementById('versionTag');
 
-const ext = (typeof browser !== 'undefined') ? browser : chrome;
-
-versionEl.textContent = `v${ext.runtime.getManifest().version}`;
+versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 
 function updateUI(enabled) {
   toggle.checked = enabled;
@@ -18,7 +16,7 @@ function updateUI(enabled) {
   statusEl.textContent = enabled ? 'ACTIVE — BLACKBOARD TABS' : 'INACTIVE';
 }
 
-ext.storage.local.get('darkModeEnabled', (result) => {
+chrome.storage.local.get('darkModeEnabled', (result) => {
   const enabled = result.darkModeEnabled !== false;
   updateUI(enabled);
 });
@@ -26,11 +24,11 @@ ext.storage.local.get('darkModeEnabled', (result) => {
 toggle.addEventListener('change', () => {
   const enabled = toggle.checked;
 
-  ext.storage.local.set({ darkModeEnabled: enabled });
+  chrome.storage.local.set({ darkModeEnabled: enabled });
 
   updateUI(enabled);
 
-  ext.runtime.sendMessage({
+  chrome.runtime.sendMessage({
     type: 'BB_DARK_MODE_TOGGLE',
     enabled,
   }).catch(() => {

@@ -42,7 +42,6 @@ Manifest V3, vanilla JS content script + background service worker, `chrome.stor
 ## Known scope / roadmap
 
 - `host_permissions` is currently scoped to `online.iona.edu` and `*.blackboardcdn.com` — one university. Broadening that match pattern to every Blackboard-hosted institution is the planned v2, and the natural next step for wider adoption.
-- The code is written cross-browser — `manifest.json` includes `browser_specific_settings.gecko` and the scripts normalize the API with `(typeof browser !== 'undefined') ? browser : chrome` — but there is no published Firefox Add-ons listing yet. Compatible, not distributed.
 
 ## Install
 

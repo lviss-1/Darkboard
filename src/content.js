@@ -47,10 +47,7 @@ function whenDomReady(fn) {
 // moment the attribute lands on <html>. The storage read is fast enough
 // (~1–3ms) that users never see a flash.
 function init() {
-  // Unified API — works in Chrome, Edge, and Firefox (with webextension-polyfill)
-  const storage = (typeof browser !== 'undefined') ? browser.storage : chrome.storage;
-
-  storage.local.get('darkModeEnabled', (result) => {
+  chrome.storage.local.get('darkModeEnabled', (result) => {
     // Default to TRUE on first install — users expect dark mode to just work
     const enabled = result.darkModeEnabled !== false;
     _darkEnabled = enabled;
@@ -62,9 +59,7 @@ function init() {
   });
 }
 
-const runtime = (typeof browser !== 'undefined') ? browser.runtime : chrome.runtime;
-
-runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.type !== 'BB_DARK_MODE_TOGGLE') return;
 
   _darkEnabled = message.enabled;

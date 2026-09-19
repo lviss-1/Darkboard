@@ -45,12 +45,5 @@
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
-  },
-
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "darkmode-blackboard@portfolio",
-      "strict_min_version": "109.0"
-    }
   }
 }

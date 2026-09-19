@@ -15,18 +15,19 @@
  *   White  #f0eee8  — warm off-white for text (easier on eyes than pure #fff)
  */
 
- /* ─── MUI FLOATING LABELS (NUCLEAR SPECIFICITY) ───────────────
-   Blackboard's JSS injection breaks variable scoping here.
-   We use hardcoded hex colors and high specificity to force it. */
+ /* ─── MUI FLOATING LABELS ─────────────────────────────────────
+   MUI floats the label over the input's border, so it needs an opaque
+   background of its own to punch through. High specificity because
+   Blackboard's JSS output is specific too. */
 html[data-bb-dark] body div label[class*="MuiFormLabel"],
 html[data-bb-dark] body div label[class*="MuiInputLabel"],
 html[data-bb-dark] label[id*="filter"],
 html[data-bb-dark] label[id*="label"] {
-  background-color: #0a0a0c !important; /* Hardcoded dark canvas */
-  background: #0a0a0c !important;
+  background-color: var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
   background-image: none !important;
   box-shadow: none !important;
-  color: #8a8490 !important; /* Hardcoded muted text */
+  color: var(--text-muted) !important;
 }
 
 /* Nuke any pseudo-elements rendering white boxes behind the label */
@@ -108,6 +109,8 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   /* Iona Maroon accent system */
   --accent-primary:   #6d1a36;   /* primary CTA, active states */
   --accent-hover:     #8a2044;   /* lighter maroon for hover */
+  --accent-deep:      #3d0f1e;   /* Iona's own maroon, darkened for a dark page */
+  --text-on-accent:   #ffffff;   /* text sitting on an accent fill */
   --accent-glow:      rgba(109, 26, 54, 0.25); /* subtle maroon glow */
 
   /* Grade colors — kept semantic, slightly warmer to match palette */
@@ -287,7 +290,7 @@ html[data-bb-dark] nav [aria-current="page"],
 html[data-bb-dark] nav [class*="active"],
 html[data-bb-dark] nav [class*="selected"] {
   background-color: var(--accent-primary) !important;
-  color: #fff !important;
+  color: var(--text-on-accent) !important;
   border-radius: 6px !important;
 }
 
@@ -374,7 +377,7 @@ html[data-bb-dark] button[class*="primary"],
 html[data-bb-dark] [class*="Button--primary"],
 html[data-bb-dark] .bb-button-primary {
   background-color: var(--accent-primary) !important;
-  color: #fff !important;
+  color: var(--text-on-accent) !important;
   border-color: transparent !important;
 }
 
@@ -451,7 +454,7 @@ html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button
 
 html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"] {
   background-color: var(--accent-primary) !important;
-  color: #fff !important;
+  color: var(--text-on-accent) !important;
   border-color: transparent !important;
 }
 
@@ -891,8 +894,8 @@ html[data-bb-dark] .main-column,
 html[data-bb-dark] .columns.main-column,
 html[data-bb-dark] [class*="activity-group"],
 html[data-bb-dark] [class*="base-recent-activity"] {
-  background-color: #0a0a0c !important;
-  color: #f0eee8 !important;
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
 }
 
 html[data-bb-dark] .base-recent-activity .activity-stream .activity-group .stream-item:hover,
@@ -900,7 +903,7 @@ html[data-bb-dark] .activity-group .stream-item:hover,
 html[data-bb-dark] div.stream-item:hover,
 html[data-bb-dark] div.stream-item.angular-animate:hover,
 html[data-bb-dark] li.stream-item-container:hover {
-  background-color: #1a1a20 !important;
+  background-color: var(--bg-tertiary) !important;
 }
 
 /* THE KEY FIX: override the light grey hover with a dark highlight */
@@ -984,7 +987,7 @@ html[data-bb-dark] [class*="activity"] button {
 html[data-bb-dark] [class*="stream"] button:hover,
 html[data-bb-dark] [class*="activity"] button:hover {
   background-color: var(--accent-primary) !important;
-  color: #fff !important;
+  color: var(--text-on-accent) !important;
   border-color: transparent !important;
 }
 
@@ -1167,7 +1170,7 @@ html[data-bb-dark] [role="option"] {
 
 html[data-bb-dark] [role="option"]:hover {
   background-color: var(--accent-primary) !important;
-  color: #fff !important;
+  color: var(--text-on-accent) !important;
 }
 
 
@@ -1441,7 +1444,7 @@ html[data-bb-dark] [style*="background-color: rgb(109, 26, 54)"],
 html[data-bb-dark] [style*="background-color: #6d1a36"],
 html[data-bb-dark] [class*="brand-header"],
 html[data-bb-dark] [class*="BrandHeader"] {
-  background-color: #3d0f1e !important; /* darkened maroon */
+  background-color: var(--accent-deep) !important;
   filter: brightness(0.85);
 }
 

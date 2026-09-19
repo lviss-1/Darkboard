@@ -51,6 +51,10 @@
     </table>
   </div>
 
+  <!-- The MUI block hardcoded its colours behind a claim that JSS injection
+       breaks variable scoping. It does not; these must resolve to the tokens. -->
+  <label id="mui-label" class="MuiFormLabel-root">Term</label>
+
   <!-- aria-expanded marks the trigger, not the panel it opens. -->
   <button id="expanded-trigger" aria-expanded="true">Open menu</button>
   <div id="selected-item" aria-selected="true">Selected item</div>
@@ -79,6 +83,14 @@
         .flatMap(r => r.selectorText.split(','))
         .map(s => s.trim())
         .filter(s => /^h\s/.test(s));
+    };
+
+    // The stream hover is a :hover rule, so read the declaration itself rather
+    // than trying to synthesise a pointer.
+    window.__declarationsFor = function (needle, prop) {
+      return window.__rules()
+        .filter(r => r.selectorText.includes(needle) && r.style[prop])
+        .map(r => r.style[prop]);
     };
 
     window.__probe = function (id) {

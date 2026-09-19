@@ -251,9 +251,8 @@ function runStreamPass(roots) {
 // percentage, and stamps a data attribute that CSS rules target.
 
 // Scanning is confined to these regions. Most Blackboard pages match none of
-// them and cost nothing beyond the lookup. The stream selectors are included
-// so a posted grade in the activity feed still gets styled.
-const GRADE_ROOTS = [
+// them and cost nothing beyond the lookup.
+const GRADEBOOK_SELECTORS = [
   'bb-grades-student-attempts',
   'bb-grades-student',
   'bb-grades-base',
@@ -267,11 +266,43 @@ const GRADE_ROOTS = [
   '[class*="GradeValue"]',
   '[data-region="gradebook"]',
   '.grader-scaffold',
-  '.student-grades-wrapper',
+  '.student-grades-wrapper'
+];
+
+// Included so a posted grade in the activity feed still gets styled, but kept
+// separate: the stream is full of dates, so it needs the stricter reading.
+const GRADE_STREAM_SELECTORS = [
   'bb-activity-stream',
   'li.stream-item-container',
   '[class*="stream-item"]'
-].join(',');
+];
+
+const GRADEBOOK_ROOTS = GRADEBOOK_SELECTORS.join(',');
+const GRADE_ROOTS = GRADEBOOK_SELECTORS.concat(GRADE_STREAM_SELECTORS).join(',');
+
+// A leading label is accepted only when it ends in a delimiter. That is what
+// separates "Score: 47 / 50" from "Question 4 / 10", and it does the work the
+// old length, slash-count and "@" guards were approximating.
+const FRACTION = /^(?:[a-z ]{0,12}[:\-]\s*)?(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*(?:points?|pts?)?$/i;
+const PERCENTAGE = /^(?:[a-z ]{0,12}[:\-]\s*)?(\d+(?:\.\d+)?)\s*%$/i;
+
+const DATE_WORDS = /\b(due|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i;
+const COUNTER_WORDS = /\b(attempts?|questions?|pages?|steps?|items?|modules?|slides?|versions?|try|tries|credits?|characters?|words?)\b/i;
+const PROGRESS_WORDS = /\b(complete|completed|progress|remaining|attendance|viewed|watched)\b/i;
+
+// The pill sets display: inline-flex, which collapses a table cell and breaks
+// the row. Block hosts get the status attribute only and render as coloured
+// bold text through the rules already in dark-mode.css.
+const INLINE_HOSTS = new Set(['SPAN', 'B', 'STRONG', 'EM', 'I', 'A', 'LABEL', 'SMALL', 'MARK']);
+
+// "9/19" and "9/10" are structurally identical; only context separates a date
+// from a quiz score. Inside a gradebook it is a score. Anywhere else a bare
+// pair in calendar range, with no label and no unit, is read as a date.
+function looksLikeDate(text, earned, total) {
+  if (!Number.isInteger(earned) || !Number.isInteger(total)) return false;
+  if (/[:\-]/.test(text) || /\b(points?|pts?)\b/i.test(text)) return false;
+  return earned >= 1 && earned <= 12 && total >= 1 && total <= 31;
+}
 
 function considerGradeText(node) {
   const el = node.parentElement;
@@ -280,34 +311,26 @@ function considerGradeText(node) {
   const text = node.data.replace(/\s+/g, ' ').trim();
   if (!text) return;
 
-  // Two slashes means a date rather than a score.
-  if ((text.match(/\//g) || []).length > 1) return;
-
-  // "Score: 95 / 100" is 15 characters; past 25 this is prose, not a value.
-  if (text.length > 25) return;
-
-  // Catches a date embedded in a title, e.g. "due by Fri 12/5".
-  if (/\b(due|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i.test(text)) return;
-
-  if (text.includes('@')) return;
+  if (DATE_WORDS.test(text) || COUNTER_WORDS.test(text) || PROGRESS_WORDS.test(text)) return;
   if (el.closest('h1, h2, h3, h4, h5, h6')) return;
 
-  const fractional = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
-  const percentage = text.match(/(\d+(?:\.\d+)?)%/);
-
   let pct = null;
+  const fractional = text.match(FRACTION);
+
   if (fractional) {
     const earned = parseFloat(fractional[1]);
-    const total  = parseFloat(fractional[2]);
-    if (total > 0) pct = (earned / total) * 100;
-  } else if (percentage) {
+    const total = parseFloat(fractional[2]);
+    if (total <= 0) return;
+    if (!el.closest(GRADEBOOK_ROOTS) && looksLikeDate(text, earned, total)) return;
+    pct = (earned / total) * 100;
+  } else {
+    const percentage = text.match(PERCENTAGE);
+    if (!percentage) return;
     pct = parseFloat(percentage[1]);
   }
 
-  if (pct === null) return;
-
   el.dataset.gradeStatus = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
-  el.classList.add('darkboard-pill');
+  if (INLINE_HOSTS.has(el.tagName)) el.classList.add('darkboard-pill');
 }
 
 // Walking text nodes instead of elements is what makes this linear: reading

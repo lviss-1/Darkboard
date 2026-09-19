@@ -72,6 +72,41 @@ Expected:
 | Progress fill vs track | different backgrounds |
 | Control text and all three guards | `rgb(240, 238, 232)` |
 
+## fixture-grades.html
+
+Covers which strings the colorizer treats as a grade, and how it stamps them.
+
+The matcher anchors the whole string and accepts a leading label only when it
+ends in a delimiter, which is what separates `Score: 47 / 50` from
+`Question 4 / 10`. Keyword guards reject counter and progress vocabulary that
+would otherwise slip through a labelled form such as `Attempt: 1 / 3`.
+
+`9/19` and `9/10` are structurally identical, so context decides: inside a
+gradebook the pair is a score, and anywhere else a bare pair in calendar range
+with no label and no unit is read as a date.
+
+```js
+await window.__scriptReady;
+__probe('g-good')    // { status, pill, display }
+```
+
+Expected:
+
+| Element | Result |
+|---|---|
+| `47 / 50`, `Score: 42 / 50`, `36/50`, `20 / 50`, `88%` | stamped and pilled |
+| `9/10` in a gradebook | stamped `good` |
+| `9/19` in a stream item | untouched |
+| `Grade posted: 47 / 50` in a stream item | stamped `good` |
+| `Attempt 1 / 3`, `Attempt: 1 / 3`, `Question 4 / 10`, `Page 2 / 10` | untouched |
+| `50% complete`, `Progress: 50%`, `due Fri 12/5` | untouched |
+| `47 / 50` outside every grade root | untouched |
+| `47 / 50` in a bare table cell | stamped, no pill, `display` still `table-cell` |
+
+The cell case matters because the pill sets `display: inline-flex`, which
+collapses a cell and breaks the row. Block hosts get the status attribute only
+and render as coloured bold text through rules already in the stylesheet.
+
 ## fixture-perf.html
 
 Measures what the grade and stream passes cost on a large page.

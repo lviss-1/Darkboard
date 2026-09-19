@@ -45,6 +45,13 @@
 
   <p>Prose with <a id="a-inline" href="#">an inline link</a> in it.</p>
 
+  <!-- Anchors Blackboard styles as buttons. The last one already matched a
+       section 8 rule before this change and must not have regressed. -->
+  <a id="a-btn" class="btn" href="#">Link button</a>
+  <a id="a-role-btn" role="button" href="#">Role button</a>
+  <a id="a-btn-primary" class="btn btn-primary" href="#">Primary link button</a>
+  <a id="a-bb-primary" class="Button--primary" href="#">Blackboard primary</a>
+
   <script>
     // A comma inside :is() or :has() is not a selector boundary, so the split
     // has to respect nesting depth.

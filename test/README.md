@@ -271,6 +271,18 @@ Against the previous stylesheet every one of those "no hover" elements had a
 hover background, and the inline link matched two colour rules with
 `--text-main` winning, which is why the link hover token never applied.
 
+The same page covers anchors styled as buttons. Section 8 already handled the
+`Button--primary` and `Button--secondary` spellings, so the gap was anchors
+named some other way, `btn-primary` being the common one, which took the link
+colour and rendered as plain text with no affordance.
+
+| Element | Expected |
+|---|---|
+| Plain inline `<a>` | link colour, no border |
+| `<a class="btn">`, `<a role="button">` | not the link colour, visible border, transparent background |
+| `<a class="btn btn-primary">` | maroon fill, white text, at least 4.5:1 |
+| `<a class="Button--primary">` | still maroon, to catch a regression from the new rules outranking section 8 |
+
 ## contrast.js
 
 Shared WCAG luminance and contrast helper, loaded by the fixtures that assert

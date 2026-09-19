@@ -426,6 +426,39 @@ html[data-bb-dark] body [role="button"][class*="Icon"]:hover {
   background-color: var(--bg-tertiary) !important;
 }
 
+/* Blackboard styles some anchors as buttons. Without this they take the link
+   colour, and because the universal rule already flattened their background
+   they render as plain text with no button affordance at all. Anchors spelled
+   Button--primary or Button--secondary are already handled above; this covers
+   the other spellings, btn-primary being the common one.
+
+   Specificity: the link rule is (0,1,2) and the link hover rule (0,2,2). The
+   base here is (0,2,3) and the primary variant (0,3,3), so both clear them.
+   The base hover and the primary base both land on (0,3,3), which is why the
+   primary is written second — at a tie the later rule wins. */
+html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"]) {
+  background-color: transparent !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-interactive) !important;
+  text-decoration: none !important;
+}
+
+html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"]):hover {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--accent-primary) !important;
+  color: var(--text-heading) !important;
+}
+
+html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"] {
+  background-color: var(--accent-primary) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"]:hover {
+  background-color: var(--accent-hover) !important;
+}
+
 /* ─── 9. TABLES ─────────────────────────────────────────────────────────── */
 html[data-bb-dark] table {
   background-color: var(--bg-secondary) !important;

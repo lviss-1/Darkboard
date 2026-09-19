@@ -4,8 +4,19 @@
   <meta charset="UTF-8" />
   <title>Darkboard fixture — activity stream</title>
 
-  <!-- The real theme under test. -->
-  <link rel="stylesheet" href="../src/dark-mode.css" />
+  <!-- The real theme under test, injected with a cache buster: python's
+       http.server lets the browser serve it from cache, which would silently
+       test a stale stylesheet. -->
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
 
   <style>
     /* Stands in for Blackboard's own stylesheet.
@@ -94,6 +105,14 @@
     })();
   </script>
 
-  <script src="../src/content.js"></script>
+  <!-- Loaded after the stub above, and cache busted for the same reason. -->
+  <script>
+    window.__scriptReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = '../src/content.js?cb=' + Date.now();
+      s.onload = resolve;
+      document.body.appendChild(s);
+    });
+  </script>
 </body>
 </html>

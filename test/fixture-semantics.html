@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<!-- The gate attribute is set directly so this fixture exercises dark-mode.css
+     in isolation, with no content.js involvement. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — semantic state colors</title>
+
+  <!-- Injected with a cache buster: python's http.server lets the browser
+       serve dark-mode.css from cache, which silently tests a stale theme. -->
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <style>
+    /* Stands in for Blackboard's own stylesheet: the light-theme colors it
+       uses to carry meaning. The universal inherit rule in dark-mode.css
+       flattens all of these, which is what the semantic block must restore. */
+    .error-message      { color: #d32f2f; }
+    .submission-success { color: #2e7d32; }
+    .due-warning        { color: #ed6c02; }
+    .assignment-overdue { color: #c62828; }
+
+    .course-progress { background-color: #e0e0e0; height: 8px; width: 240px; }
+    .progress-fill   { background-color: #1976d2; height: 8px; width: 40%; }
+  </style>
+</head>
+<body>
+
+  <p class="error-message">Submission required</p>
+  <p class="submission-success">Submitted</p>
+  <p class="due-warning">Due soon</p>
+  <p class="assignment-overdue">Overdue</p>
+  <p role="alert" id="alert-text">Your attempt could not be saved</p>
+
+  <div role="progressbar" class="course-progress" aria-valuenow="40">
+    <div class="progress-fill"></div>
+  </div>
+
+  <progress id="native-progress" value="40" max="100"></progress>
+
+  <!-- Guard cases: each contains a state substring inside a word that
+       means the opposite, or means nothing at all. None may be recolored. -->
+  <p class="unsubmitted-work">Unsubmitted</p>
+  <p class="incomplete-module">Incomplete</p>
+  <p class="template-header">Template</p>
+
+  <p id="control-text">Regular body copy that must stay light.</p>
+
+  <script>
+    window.__probe = function () {
+      const color = sel => getComputedStyle(document.querySelector(sel)).color;
+      const bg    = sel => getComputedStyle(document.querySelector(sel)).backgroundColor;
+
+      return {
+        error:       color('.error-message'),
+        success:     color('.submission-success'),
+        warning:     color('.due-warning'),
+        overdue:     color('.assignment-overdue'),
+        alert:       color('#alert-text'),
+        progressTrack: bg('.course-progress'),
+        progressFill:  bg('.progress-fill'),
+        progressDistinct: bg('.course-progress') !== bg('.progress-fill'),
+        controlText: color('#control-text'),
+        guardUnsubmitted: color('.unsubmitted-work'),
+        guardIncomplete: color('.incomplete-module'),
+        guardTemplate: color('.template-header'),
+      };
+    };
+  </script>
+</body>
+</html>

@@ -1356,3 +1356,101 @@ html[data-bb-dark] [class*="BrandHeader"] {
   background-color: #3d0f1e !important; /* darkened maroon */
   filter: brightness(0.85);
 }
+
+/* ─── 31. SEMANTIC STATE COLORS ──────────────────────────────────────────
+   The universal rule in section 3 forces `color: inherit !important` onto
+   every element, which is what keeps Blackboard's near-black body text
+   readable — but it also flattens the colors Blackboard uses to carry
+   meaning. Validation errors, submission status and progress bars all
+   collapse into ordinary body text.
+
+   These rules restore that distinction. Blackboard's own light-theme values
+   cannot be recovered here: once `*` carries !important, no CSS keyword
+   reaches back into another author stylesheet (`unset` and `initial` give
+   transparent, `inherit` gives the parent's value, and `revert` only rolls
+   back to the user-agent origin). Only cascade layers could do it. So the
+   states are restated in this theme's own palette instead, which also gives
+   far better contrast than Blackboard's light-theme reds and greens would
+   manage against a near-black canvas — every value below clears 7:1.
+
+   Specificity: the universal rule is (0,1,1). Leading with `body` puts these
+   at (0,2,2), which clears it and also outranks the typography block in
+   section 4 (0,1,2) and the inline-style catchers in section 17 (0,2,1).
+   This section sits last in the file so any same-specificity tie resolves
+   here as well.
+
+   Substring matching is deliberately guarded: `[class*="late"]` would also
+   match "template", and "unsubmitted"/"incomplete" invert the meaning of
+   the states they contain.                                                 */
+
+/* Errors, validation failures, required fields */
+html[data-bb-dark] body [class*="error"],
+html[data-bb-dark] body [class*="Error"],
+html[data-bb-dark] body [class*="invalid"],
+html[data-bb-dark] body [class*="Invalid"],
+html[data-bb-dark] body [class*="danger"],
+html[data-bb-dark] body [class*="Danger"],
+html[data-bb-dark] body [class*="required"],
+html[data-bb-dark] body [role="alert"],
+html[data-bb-dark] body [aria-invalid="true"] {
+  color: var(--accent-danger) !important;
+}
+
+/* Overdue, late and missing work — same weight as an error */
+html[data-bb-dark] body [class*="overdue"],
+html[data-bb-dark] body [class*="Overdue"],
+html[data-bb-dark] body [class*="missing"],
+html[data-bb-dark] body [class*="Missing"],
+html[data-bb-dark] body [class*="Late"],
+html[data-bb-dark] body [class*="-late"] {
+  color: var(--accent-danger) !important;
+}
+
+/* Submitted, graded, complete */
+html[data-bb-dark] body [class*="success"],
+html[data-bb-dark] body [class*="Success"],
+html[data-bb-dark] body [class*="submitted"]:not([class*="unsubmitted"]),
+html[data-bb-dark] body [class*="Submitted"]:not([class*="Unsubmitted"]),
+html[data-bb-dark] body [class*="complete"]:not([class*="incomplete"]),
+html[data-bb-dark] body [class*="Complete"]:not([class*="Incomplete"]) {
+  color: var(--accent-success) !important;
+}
+
+/* Warnings, pending state, approaching deadlines */
+html[data-bb-dark] body [class*="warn"],
+html[data-bb-dark] body [class*="Warn"],
+html[data-bb-dark] body [class*="caution"],
+html[data-bb-dark] body [class*="pending"],
+html[data-bb-dark] body [class*="Pending"],
+html[data-bb-dark] body [class*="due-soon"],
+html[data-bb-dark] body [class*="dueSoon"] {
+  color: var(--accent-warn) !important;
+}
+
+/* Progress indicators — the fill has to read as distinct from the track,
+   otherwise the universal rule renders both in the page background and the
+   bar disappears entirely. */
+html[data-bb-dark] body [role="progressbar"],
+html[data-bb-dark] body progress,
+html[data-bb-dark] body [class*="progress-track"],
+html[data-bb-dark] body [class*="ProgressTrack"],
+html[data-bb-dark] body [class*="MuiLinearProgress-root"] {
+  background-color: var(--bg-tertiary) !important;
+  border: none !important;
+}
+
+html[data-bb-dark] body [role="progressbar"] > *,
+html[data-bb-dark] body [class*="progress-fill"],
+html[data-bb-dark] body [class*="ProgressFill"],
+html[data-bb-dark] body [class*="progress-bar"] > *,
+html[data-bb-dark] body [class*="MuiLinearProgress-bar"] {
+  background-color: var(--accent-primary) !important;
+}
+
+html[data-bb-dark] body progress::-webkit-progress-bar {
+  background-color: var(--bg-tertiary) !important;
+}
+
+html[data-bb-dark] body progress::-webkit-progress-value {
+  background-color: var(--accent-primary) !important;
+}

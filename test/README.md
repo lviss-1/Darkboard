@@ -43,3 +43,38 @@ Expected:
 | Toggled off | `gated: false`, `marked: 0`, `inlineBg: ""`, `computedBg` back to `rgb(255, 255, 255)` |
 | Toggled on again | Override re-applied, observer still catches newly injected rows |
 | Loaded with `?off` | Nothing ever marked, no observer activity |
+
+## fixture-semantics.html
+
+Covers the semantic state colors in `dark-mode.css` section 31.
+
+The universal rule in section 3 forces `color: inherit !important` onto every
+element, which flattens the colors Blackboard uses to carry meaning. This page
+applies Blackboard-style light-theme colors to status text and a progress bar,
+then checks that the theme restores a distinction.
+
+It also includes guard cases. Substring matching is fragile here: `template`
+contains `late`, and `unsubmitted` and `incomplete` invert the states they
+contain. None of the three may be recolored.
+
+```js
+await __cssReady;
+__probe()
+```
+
+Expected:
+
+| Element | Result |
+|---|---|
+| Error, overdue, `role="alert"` | `rgb(248, 113, 113)` |
+| Success, submitted | `rgb(74, 222, 128)` |
+| Warning, pending | `rgb(251, 191, 36)` |
+| Progress fill vs track | different backgrounds |
+| Control text and all three guards | `rgb(240, 238, 232)` |
+
+## A note on caching
+
+Both fixtures inject `dark-mode.css` with a timestamp query, because
+`python3 -m http.server` lets the browser cache it and you would otherwise be
+testing a stale stylesheet without any sign that anything was wrong.
+`fixture-stream.html` does the same for `content.js`.

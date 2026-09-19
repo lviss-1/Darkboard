@@ -18,6 +18,19 @@
     });
   </script>
 
+  <script>
+    // Browsers pause requestAnimationFrame in a hidden tab, and the stream
+    // observer debounces through it, so without this the page appears to do
+    // nothing and every assertion below fails for the wrong reason.
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        if (document.hidden) return setTimeout(() => fn(performance.now()), 0);
+        return native(fn);
+      };
+    })();
+  </script>
+
   <style>
     /* Stands in for Blackboard's own stylesheet.
        The id raises specificity to (1,2,1), above anything in dark-mode.css,

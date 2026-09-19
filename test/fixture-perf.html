@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — scan cost</title>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <script>
+    // Browsers pause requestAnimationFrame in a hidden tab. Both observers in
+    // content.js debounce through it, so without this shim the extension does
+    // no work at all here and the page reports a meaningless zero.
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        // Zero delay, not 16: a frame floor would swamp the work being measured.
+        if (document.hidden) return setTimeout(() => fn(performance.now()), 0);
+        return native(fn);
+      };
+    })();
+
+    window.__nextFrame = () => new Promise(r => window.requestAnimationFrame(r));
+  </script>
+</head>
+<body>
+
+  <div id="app"></div>
+
+  <script>
+    // Deep nesting is the point: the previous implementation read textContent
+    // and ran querySelector on every span/div/td, both of which re-walk the
+    // subtree, so cost grew with depth rather than node count.
+    function buildDom(target, breadth, depth) {
+      if (depth === 0) {
+        const leaf = document.createElement('span');
+        leaf.textContent = 'Course material paragraph text';
+        target.appendChild(leaf);
+        return;
+      }
+      for (let i = 0; i < breadth; i++) {
+        const box = document.createElement('div');
+        box.className = 'content-block depth-' + depth;
+        target.appendChild(box);
+        buildDom(box, breadth, depth - 1);
+      }
+    }
+
+    const params = new URLSearchParams(location.search);
+    const app = document.getElementById('app');
+    buildDom(app, +(params.get('breadth') || 3), +(params.get('depth') || 8));
+
+    const GRADE_COUNT = 20;
+
+    // The only grade-shaped text on the page, inside a region GRADE_ROOTS matches.
+    const gradebook = document.createElement('div');
+    gradebook.className = 'gradebook-table';
+    for (let i = 0; i < GRADE_COUNT; i++) {
+      const cell = document.createElement('span');
+      cell.textContent = (30 + i) + ' / 50';
+      gradebook.appendChild(cell);
+    }
+    app.appendChild(gradebook);
+
+    // Stands in for an exam countdown: text rewritten in place, once a tick.
+    const ticker = document.createElement('span');
+    ticker.textContent = 'Time remaining';
+    app.appendChild(ticker);
+
+    window.__nodeCount = app.querySelectorAll('*').length;
+
+    (function () {
+      const listeners = [];
+      window.chrome = {
+        storage: {
+          local: {
+            get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: true }), 0); },
+            set() {},
+          },
+        },
+        runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } },
+      };
+    })();
+
+    window.__run = async function (rounds, budgetMs) {
+      rounds = rounds || 20;
+      budgetMs = budgetMs || 30000;
+
+      const start = performance.now();
+      let completed = 0;
+
+      for (let i = 0; i < rounds; i++) {
+        ticker.firstChild.data = 'Time remaining ' + i;
+        await window.__nextFrame();
+        completed++;
+        if (performance.now() - start > budgetMs) break;
+      }
+
+      const wallMs = performance.now() - start;
+      return {
+        nodeCount: window.__nodeCount,
+        roundsRequested: rounds,
+        roundsCompleted: completed,
+        wallMs: Math.round(wallMs),
+        msPerRound: +(wallMs / completed).toFixed(1),
+        stamped: document.querySelectorAll('[data-grade-status]').length,
+        abortedOnBudget: completed < rounds,
+      };
+    };
+  </script>
+
+  <script>
+    // Time to first complete grade pass. Polling rather than an observer keeps
+    // the measurement honest: setTimeout cannot run while the scan is blocking
+    // the main thread, so the elapsed value includes that blocking.
+    window.__initialScanMs = (async () => {
+      const t0 = performance.now();
+      while (document.querySelectorAll('[data-grade-status]').length < GRADE_COUNT) {
+        if (performance.now() - t0 > 60000) return -1;
+        await new Promise(r => setTimeout(r, 10));
+      }
+      return Math.round(performance.now() - t0);
+    })();
+
+    window.__scriptReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = (params.get('impl') || '../src/content.js') + '?cb=' + Date.now();
+      s.onload = resolve;
+      document.body.appendChild(s);
+    });
+  </script>
+</body>
+</html>

@@ -72,6 +72,52 @@ Expected:
 | Progress fill vs track | different backgrounds |
 | Control text and all three guards | `rgb(240, 238, 232)` |
 
+## fixture-perf.html
+
+Measures what the grade and stream passes cost on a large page.
+
+Builds a deep synthetic DOM, puts the only grade-shaped text inside a region
+the colorizer scopes to, then rewrites a text node outside that region once per
+round to imitate an exam countdown ticking. Steady-state cost per round is the
+number that matters; the initial scan is dominated by one-time work.
+
+`?depth=` and `?breadth=` size the tree. `?impl=` points at an alternative
+content script, which is how a change gets compared against the version before
+it:
+
+```bash
+git show HEAD:src/content.js > test/.tmp-old-content.js
+```
+
+Then load `?impl=.tmp-old-content.js` and compare. Keep that file untracked.
+
+```js
+await window.__initialScanMs
+await window.__run(50)
+```
+
+Always check `stamped` matches between runs. A faster pass that stamps fewer
+nodes is not faster, it is broken.
+
+Measured on 16,423 nodes when the scoped incremental scan replaced the
+full-document sweep:
+
+| | before | after |
+|---|---|---|
+| Steady state per round | 30.0 ms | 4.0 ms |
+| 50 rounds | 1501 ms | 202 ms |
+| Nodes stamped | 20 | 20 |
+
+## A note on visibility
+
+Browsers pause `requestAnimationFrame` in a hidden tab, and both observers in
+`content.js` debounce through it. Run in a hidden tab without accounting for
+that and the extension does no work at all, so the stream fixture fails every
+assertion and the perf fixture reports a meaningless zero. Both pages shim
+`requestAnimationFrame` onto `setTimeout` when `document.hidden` is set. The
+shim uses a zero delay rather than 16 ms so a frame floor does not swamp the
+work being measured.
+
 ## A note on caching
 
 Both fixtures inject `dark-mode.css` with a timestamp query, because

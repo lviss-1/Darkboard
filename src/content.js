@@ -100,21 +100,71 @@ function watchForAttributeStrip() {
   });
 }
 
+// ─── Mutation scoping ─────────────────────────────────────────────────────
+// Both observers below do work proportional to what actually changed rather
+// than rescanning the document. Past this many separate roots the bookkeeping
+// costs more than one broad pass, so we widen to <body> instead.
+const MAX_ROOTS = 50;
+
+function collectMutationRoots(records, into) {
+  for (const record of records) {
+    if (record.type === 'characterData') {
+      if (record.target.parentElement) into.add(record.target.parentElement);
+      continue;
+    }
+
+    if (record.type === 'attributes') {
+      into.add(record.target);
+      continue;
+    }
+
+    for (const node of record.addedNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE) into.add(node);
+      else if (node.parentElement) into.add(node.parentElement);
+    }
+  }
+}
+
+// Drops roots already covered by another root, so a subtree is walked once.
+function resolveRoots(pending) {
+  const live = [...pending].filter(el => el.isConnected);
+  if (live.length === 0) return [];
+  if (live.length > MAX_ROOTS) return [document.body];
+
+  return live.filter(el => !live.some(other => other !== el && other.contains(el)));
+}
+
 // ─── Stream Row Background Killer ─────────────────────────────────────────
 // The activity stream expanded row gets a light background that survives
-// both CSS overrides and MutationObserver style watching. This is because
-// Blackboard applies it via a high-specificity class added to the host
-// element, not an inline style.
-//
-// Solution: a MutationObserver that fires whenever Blackboard mutates class
-// or style attributes. Only re-runs enforceStreamDark() when the DOM actually
-// changes — zero CPU cost at idle. Debounced with requestAnimationFrame so
-// rapid SPA re-renders collapse into a single pass per animation frame.
+// CSS overrides, because Blackboard applies it via a high-specificity class
+// on the host element rather than an inline style. The only thing that beats
+// it is an inline !important of our own.
 
 const DARK_BG = '#0a0a0c';
 // A color is "light" if the sum of its RGB channels exceeds this value
 // and it isn't a near-black shade.
 const LIGHT_THRESHOLD = 180;
+
+const STREAM_SELECTORS = [
+  'li.stream-item-container',
+  'li[class*="stream-item"]',
+  'div.stream-item',
+  'div[class*="stream-item"]',
+  'div.activity-group',
+  'ul.activity-group',
+  '[class*="activity-group"]',
+  '[class*="previousStreamEntries"]',
+  '[class*="streamEntries"]',
+  '.main-column',
+  '[class*="base-recent-activity"]',
+  '[class*="activity-stream"]',
+  'bb-activity-stream',
+  'bb-stream',
+  '.activity-group > li',
+  '.activity-stream > li',
+  '[class*="notification"]',
+  '[class*="Notification"]'
+].join(',');
 
 const STREAM_OBSERVER_CONFIG = {
   childList: true,
@@ -123,41 +173,42 @@ const STREAM_OBSERVER_CONFIG = {
   attributeFilter: ['class', 'style'],
 };
 
-function enforceStreamDark() {
+// CSSOM re-serializes colors, so the hex we set back reads as "rgb(10, 10, 12)".
+// Resolving it through a throwaway element keeps the comparison correct without
+// hardcoding a second spelling of DARK_BG that could drift from the first.
+let _darkBgSerialized = null;
+function darkBgSerialized() {
+  if (_darkBgSerialized === null) {
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = DARK_BG;
+    _darkBgSerialized = probe.style.backgroundColor;
+  }
+  return _darkBgSerialized;
+}
+
+function enforceStreamDark(roots) {
   if (!_darkEnabled || !document.body) return;
 
-  const SELECTORS = [
-    'li.stream-item-container',
-    'li[class*="stream-item"]',
-    'div.stream-item',
-    'div[class*="stream-item"]',
-    'div.activity-group',
-    'ul.activity-group',
-    '[class*="activity-group"]',
-    '[class*="previousStreamEntries"]',
-    '[class*="streamEntries"]',
-    '.main-column',
-    '[class*="base-recent-activity"]',
-    '[class*="activity-stream"]',
-    'bb-activity-stream',
-    'bb-stream',
-    '.activity-group > li',
-    '.activity-stream > li',
-    '[class*="notification"]',
-    '[class*="Notification"]'
-  ];
+  const scopes = (roots && roots.length) ? roots : [document.body];
+  const alreadyDark = darkBgSerialized();
 
-  const candidates = document.body.querySelectorAll(SELECTORS.join(','));
-  for (const el of candidates) {
-    const computed = window.getComputedStyle(el);
-    const bgColor = computed.backgroundColor;
-    const bgImage = computed.backgroundImage;
+  for (const scope of scopes) {
+    const candidates = [];
+    if (scope.matches && scope.matches(STREAM_SELECTORS)) candidates.push(scope);
+    candidates.push(...scope.querySelectorAll(STREAM_SELECTORS));
 
-    const m = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (m) {
+    for (const el of candidates) {
+      // Cheaper than getComputedStyle, and reading the inline value rather than
+      // the marker means this self-heals if Blackboard replaces the attribute.
+      if (el.style.getPropertyValue('background-color') === alreadyDark) continue;
+
+      const computed = window.getComputedStyle(el);
+      const m = computed.backgroundColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!m) continue;
+
       const [r, g, b] = [+m[1], +m[2], +m[3]];
-
       const isLight = r > 40 && g > 40 && b > 40 && (r + g + b) > LIGHT_THRESHOLD;
+      const bgImage = computed.backgroundImage;
       const hasGradient = bgImage && bgImage !== 'none' && bgImage.includes('gradient');
 
       if (isLight || hasGradient) {
@@ -170,9 +221,8 @@ function enforceStreamDark() {
   }
 }
 
-// Undoes every inline override enforceStreamDark() applied. Querying the DOM
-// for the marker (rather than holding a Set of elements) avoids retaining
-// nodes that Blackboard's SPA has already detached.
+// Querying for the marker rather than holding a Set of elements avoids
+// retaining nodes that Blackboard's SPA has already detached.
 function revertStreamDark() {
   for (const el of document.querySelectorAll('[' + MARK + ']')) {
     el.style.removeProperty('background');
@@ -185,49 +235,147 @@ function revertStreamDark() {
 // enforceStreamDark() writes to the style attribute, which is exactly what
 // streamObserver watches — so each pass would schedule a redundant follow-up.
 // Detaching for the duration of the write loop breaks that cycle.
-function runStreamPass() {
+function runStreamPass(roots) {
   if (!streamObserver) {
-    enforceStreamDark();
+    enforceStreamDark(roots);
     return;
   }
 
   streamObserver.disconnect();
-  enforceStreamDark();
+  enforceStreamDark(roots);
   streamObserver.observe(document.body, STREAM_OBSERVER_CONFIG);
+}
+
+// ─── Grade Colorizer ──────────────────────────────────────────────────────
+// CSS cannot do arithmetic, so JS reads grade strings, calculates the
+// percentage, and stamps a data attribute that CSS rules target.
+
+// Scanning is confined to these regions. Most Blackboard pages match none of
+// them and cost nothing beyond the lookup. The stream selectors are included
+// so a posted grade in the activity feed still gets styled.
+const GRADE_ROOTS = [
+  'bb-grades-student-attempts',
+  'bb-grades-student',
+  'bb-grades-base',
+  'bb-grades-overview',
+  'bb-grades-summary',
+  'bb-grade-detail',
+  '[class*="grades-"]',
+  '[class*="gradebook"]',
+  '[class*="Gradebook"]',
+  '[class*="grade-value"]',
+  '[class*="GradeValue"]',
+  '[data-region="gradebook"]',
+  '.grader-scaffold',
+  '.student-grades-wrapper',
+  'bb-activity-stream',
+  'li.stream-item-container',
+  '[class*="stream-item"]'
+].join(',');
+
+function considerGradeText(node) {
+  const el = node.parentElement;
+  if (!el || el.dataset.gradeStatus) return;
+
+  const text = node.data.replace(/\s+/g, ' ').trim();
+  if (!text) return;
+
+  // Two slashes means a date rather than a score.
+  if ((text.match(/\//g) || []).length > 1) return;
+
+  // "Score: 95 / 100" is 15 characters; past 25 this is prose, not a value.
+  if (text.length > 25) return;
+
+  // Catches a date embedded in a title, e.g. "due by Fri 12/5".
+  if (/\b(due|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i.test(text)) return;
+
+  if (text.includes('@')) return;
+  if (el.closest('h1, h2, h3, h4, h5, h6')) return;
+
+  const fractional = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  const percentage = text.match(/(\d+(?:\.\d+)?)%/);
+
+  let pct = null;
+  if (fractional) {
+    const earned = parseFloat(fractional[1]);
+    const total  = parseFloat(fractional[2]);
+    if (total > 0) pct = (earned / total) * 100;
+  } else if (percentage) {
+    pct = parseFloat(percentage[1]);
+  }
+
+  if (pct === null) return;
+
+  el.dataset.gradeStatus = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
+  el.classList.add('darkboard-pill');
+}
+
+// Walking text nodes instead of elements is what makes this linear: reading
+// textContent on every span/div/td re-walks each subtree once per ancestor.
+// It also removes the need to guard against stamping both a parent and its
+// child, since text nodes cannot contain one another.
+function walkGrades(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) considerGradeText(node);
+}
+
+function scanGradesIn(root) {
+  if (root.closest && root.closest(GRADE_ROOTS)) {
+    walkGrades(root);
+    return;
+  }
+
+  for (const region of resolveRoots(new Set(root.querySelectorAll(GRADE_ROOTS)))) {
+    walkGrades(region);
+  }
+}
+
+function scanGrades(roots) {
+  if (!_darkEnabled || !document.body) return;
+
+  for (const root of (roots && roots.length) ? roots : [document.body]) {
+    scanGradesIn(root);
+  }
 }
 
 function startEnhancements() {
   if (streamObserver || !document.body) return;
 
+  const streamPending = new Set();
   let streamRafPending = false;
-  streamObserver = new MutationObserver(() => {
+  streamObserver = new MutationObserver((records) => {
+    collectMutationRoots(records, streamPending);
     if (streamRafPending) return;
     streamRafPending = true;
     requestAnimationFrame(() => {
       streamRafPending = false;
-      runStreamPass();
+      const roots = resolveRoots(streamPending);
+      streamPending.clear();
+      if (roots.length) runStreamPass(roots);
     });
   });
 
   // Also starts the observation, via the reconnect at the end of the pass.
-  runStreamPass();
+  runStreamPass(null);
 
-  // characterData: true catches Angular silently rewriting text in table cells.
-  // Debounced with rAF: colorizeAllGrades queries all span/div/td elements which
-  // can number in the thousands on a Blackboard page. Without debouncing, rapid
-  // DOM mutations (keystrokes, React reconciles) trigger back-to-back full-DOM
-  // scans. rAF collapses them into at most one scan per animation frame.
+  // characterData catches Angular rewriting text in place, which happens in
+  // table cells without any element being added or removed.
+  const gradePending = new Set();
   let gradeRafPending = false;
-  gradeObserver = new MutationObserver(() => {
+  gradeObserver = new MutationObserver((records) => {
+    collectMutationRoots(records, gradePending);
     if (gradeRafPending) return;
     gradeRafPending = true;
     requestAnimationFrame(() => {
       gradeRafPending = false;
-      colorizeAllGrades();
+      const roots = resolveRoots(gradePending);
+      gradePending.clear();
+      if (roots.length) scanGrades(roots);
     });
   });
 
-  colorizeAllGrades();
+  scanGrades(null);
   gradeObserver.observe(document.body, {
     childList: true,
     subtree: true,
@@ -246,56 +394,6 @@ function stopEnhancements() {
   }
 
   revertStreamDark();
-}
-
-// CSS cannot do arithmetic, so we use JS to read grade strings, calculate
-// the percentage, and stamp a data attribute that CSS rules can target.
-function colorizeAllGrades() {
-  if (!_darkEnabled) return;
-
-  const elements = Array.from(document.querySelectorAll('span, div, td')).reverse();
-
-  elements.forEach(el => {
-    if (el.querySelector('.darkboard-pill')) return;
-
-    // Squash hidden newlines and tabs into single spaces for the regex
-    const text = el.textContent.replace(/\s+/g, ' ').trim();
-
-    // Ignore dates (they have two slashes)
-    if ((text.match(/\//g) || []).length > 1) return;
-
-    // Skip long strings — grade values are short ("Score: 95 / 100" = 15 chars max);
-    // anything over 25 chars is almost certainly a title or description, not a score.
-    if (text.length > 25) return;
-
-    // Skip if text contains scheduling/calendar keywords — these signal a date
-    // embedded in an assignment title (e.g. "due by Fri 12/5", "BY FRIDAY 12/5").
-    if (/\b(due|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i.test(text)) return;
-
-    // Skip date/time patterns like "12/5 @ 11:59"
-    if (text.includes('@')) return;
-
-    // Skip elements inside headings (announcement and discussion titles)
-    if (el.closest('h1, h2, h3, h4, h5, h6')) return;
-
-    const fractional = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
-    const percentage = text.match(/(\d+(?:\.\d+)?)%/);
-
-    let pct = null;
-    if (fractional) {
-      const earned = parseFloat(fractional[1]);
-      const total  = parseFloat(fractional[2]);
-      if (total > 0) pct = (earned / total) * 100;
-    } else if (percentage) {
-      pct = parseFloat(percentage[1]);
-    }
-
-    if (pct !== null) {
-      const status = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
-      el.dataset.gradeStatus = status;
-      el.classList.add('darkboard-pill');
-    }
-  });
 }
 
 init();

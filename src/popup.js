@@ -32,7 +32,9 @@ toggle.addEventListener('change', () => {
     type: 'BB_DARK_MODE_TOGGLE',
     enabled,
   }).catch(() => {
-    // Background may not be awake yet on first click — safe to ignore.
-    // content.js also reads storage directly, so state will sync on next load.
+    // Rejects only when nothing is listening. MV3 wakes the service worker to
+    // deliver a message, so this is not a cold-start race. Storage is already
+    // written above and content.js reads it on load, so the preference survives
+    // even when the broadcast finds no receiver.
   });
 });

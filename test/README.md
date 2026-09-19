@@ -46,7 +46,7 @@ Expected:
 
 ## fixture-semantics.html
 
-Covers the semantic state colors in `dark-mode.css` section 31.
+Covers the semantic state colors in `dark-mode.css` section 28.
 
 The universal rule in section 3 forces `color: inherit !important` onto every
 element, which flattens the colors Blackboard uses to carry meaning. This page

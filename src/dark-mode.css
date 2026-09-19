@@ -558,7 +558,7 @@ html[data-bb-dark] [class*="status-error"] {
   color: var(--accent-danger) !important;
 }
 
-/* ─── 12b. GRADE SCORE COLORS ─────────────────────────────────────────────
+/* ─── 13. GRADE SCORE COLORS ──────────────────────────────────────────────
    CSS cannot read the numbers, so content.js does the arithmetic and stamps
    data-grade-status. The thresholds live there: good at 90, fair at 80,
    average at 70, poor below that.
@@ -685,17 +685,17 @@ html[data-bb-dark] [class*="ScoreBadge"][style*="background"] {
 
 
 
-/* ─── 13. IFRAMES — style the host element so there's no white flash ─────── */
+/* ─── 14. IFRAMES — style the host element so there's no white flash ─────── */
 html[data-bb-dark] iframe {
   color-scheme: dark;
 }
 
-/* ─── 14. FORCE COLOR-SCHEME ON ROOT (helps native browser UI) ──────────── */
+/* ─── 15. FORCE COLOR-SCHEME ON ROOT (helps native browser UI) ──────────── */
 html[data-bb-dark] {
   color-scheme: dark;
 }
 
-/* ─── 15. IONA-SPECIFIC: GRADEBOOK WHITE SPACE ───────────────────────────
+/* ─── 16. IONA-SPECIFIC: GRADEBOOK WHITE SPACE ───────────────────────────
    The gradebook page leaves a large white area below the table because the
    bb-grades-* web components and their host <main> don't inherit body bg.
    We also target the Angular component host elements directly.           */
@@ -743,7 +743,7 @@ html[data-bb-dark] [class*="pagination"] button {
   border-color: var(--border-subtle) !important;
 }
 
-/* ─── 16. IONA-SPECIFIC: INSTITUTION PAGE CONTENT AREA ───────────────────
+/* ─── 17. IONA-SPECIFIC: INSTITUTION PAGE CONTENT AREA ───────────────────
    The institution page right-side content panel (white area with Follett
    ACCESS, CSA instructions etc.) is a separate scrollable div that sits
    outside the main shell and doesn't inherit the body background.        */
@@ -785,7 +785,7 @@ html[data-bb-dark] [style*="background: white"] {
   border-color: var(--border-subtle) !important;
 }
 
-/* ─── 17. NUCLEAR FALLBACK — any div/section with an explicit white bg ────
+/* ─── 18. NUCLEAR FALLBACK — any div/section with an explicit white bg ────
    Blackboard Ultra and its embedded content frequently inline
    style="background-color:#ffffff" or similar. This catches all of them.
    It's the last resort — specific rules above take conceptual priority.  */
@@ -991,7 +991,7 @@ html[data-bb-dark] [class*="activity"] button:hover {
   border-color: transparent !important;
 }
 
-/* ─── 21. PROFILE PAGE — info cards & form rows ──────────────────────────
+/* ─── 20. PROFILE PAGE — info cards & form rows ──────────────────────────
    The Basic Information / System Settings / Additional Information cards
    use a near-white background (#f5f5f5 or similar) with light grey text.
    The form rows inside them are borderless divs with inline light styles.  */
@@ -1071,7 +1071,7 @@ html[data-bb-dark] [class*="user-hero"] {
   background-color: var(--bg-secondary) !important;
 }
 
-/* ─── 29. GRADES OVERVIEW PAGE — course cards & empty state boxes ─────────
+/* ─── 21. GRADES OVERVIEW PAGE — course cards & empty state boxes ─────────
    The /ultra/grades page shows a card per course. Inside each card is
    an empty-state box ("Your recently graded work will appear here") that
    gets an explicit light background. We kill it here.                    */
@@ -1098,7 +1098,7 @@ html[data-bb-dark] [class*="Placeholder"] {
   border: 1px dashed var(--border-subtle) !important;
 }
 
-/* ─── 30. ACTIVITY STREAM — zero white, zero border, zero surround ────────
+/* ─── 22. ACTIVITY STREAM — zero white, zero border, zero surround ────────
    The expanded row's light surround is a host element wrapping the entire
    row including the timestamp gutter. We target ALL descendants at every
    depth to ensure nothing can be light-colored.                           */
@@ -1175,7 +1175,7 @@ html[data-bb-dark] [role="option"]:hover {
 
 
 
-/* ─── 28. ZERO GREY POLICY — global hover & focus overrides ──────────────
+/* ─── 23. ZERO GREY POLICY — global hover & focus overrides ──────────────
    No grey anywhere, ever. This block overrides every hover/focus/active
    state across the entire domain with dark theme equivalents.            */
 
@@ -1246,7 +1246,7 @@ html[data-bb-dark] [class*="ListItem"]:focus-within {
 }
 
 /* A net for the light hover shade Blackboard injects inline on rows, e.g.
-   rgb(244, 244, 244) or rgb(235, 235, 235). Section 17 lists the common exact
+   rgb(244, 244, 244) or rgb(235, 235, 235). Section 18 lists the common exact
    values; this catches the rest.
 
    Prefix matching cannot tell rgb(20, 20, 20) from rgb(200, 200, 200), and
@@ -1288,7 +1288,7 @@ html[data-bb-dark] [role="tab"][aria-selected="true"] {
   border-bottom-color: var(--accent-primary) !important;
 }
 
-/* ─── 23. RIGHT SIDEBAR PANEL — instructor card, roster, books & tools ───── */
+/* ─── 24. RIGHT SIDEBAR PANEL — instructor card, roster, books & tools ───── */
 html[data-bb-dark] [class*="CourseSidebar"],
 html[data-bb-dark] [class*="course-sidebar"],
 html[data-bb-dark] [class*="RightPanel"],
@@ -1304,7 +1304,7 @@ html[data-bb-dark] [role="complementary"] {
   color: var(--text-main) !important;
 }
 
-/* ─── 24. ANNOUNCEMENTS PAGE ─────────────────────────────────────────────── */
+/* ─── 25. ANNOUNCEMENTS PAGE ─────────────────────────────────────────────── */
 html[data-bb-dark] bb-announcements,
 html[data-bb-dark] [class*="announcement"],
 html[data-bb-dark] [class*="Announcement"] {
@@ -1379,7 +1379,7 @@ html[data-bb-dark] bb-announcements [role="row"]:hover {
   background-color: var(--bg-tertiary) !important;
 }
 
-/* ─── 25. GLOBAL SWEEP — every web component host element ────────────────
+/* ─── 26. GLOBAL SWEEP — every web component host element ────────────────
    Blackboard Ultra is built with Angular web components (bb-*, ultra-*).
    Each custom element creates a shadow-DOM boundary whose HOST element
    defaults to white if no background is set. This targets every bb- and
@@ -1414,7 +1414,7 @@ html[data-bb-dark] *:is(
   color: inherit;
 }
 
-/* ─── 26. ULTIMATE FALLBACK — any element that is explicitly white/light ──
+/* ─── 27. ULTIMATE FALLBACK — any element that is explicitly white/light ──
    This is the final safety net. It uses a CSS filter approach: any element
    whose computed background would be white or near-white gets overridden.
    We do this by resetting ALL divs, sections, and list items to inherit,
@@ -1448,7 +1448,7 @@ html[data-bb-dark] [class*="BrandHeader"] {
   filter: brightness(0.85);
 }
 
-/* ─── 31. SEMANTIC STATE COLORS ──────────────────────────────────────────
+/* ─── 28. SEMANTIC STATE COLORS ──────────────────────────────────────────
    The universal rule in section 3 forces `color: inherit !important` onto
    every element, which is what keeps Blackboard's near-black body text
    readable — but it also flattens the colors Blackboard uses to carry
@@ -1466,7 +1466,7 @@ html[data-bb-dark] [class*="BrandHeader"] {
 
    Specificity: the universal rule is (0,1,1). Leading with `body` puts these
    at (0,2,2), which clears it and also outranks the typography block in
-   section 4 (0,1,2) and the inline-style catchers in section 17 (0,2,1).
+   section 4 (0,1,2) and the inline-style catchers in section 18 (0,2,1).
    This section sits last in the file so any same-specificity tie resolves
    here as well.
 

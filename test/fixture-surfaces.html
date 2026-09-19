@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — surfaces</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Card tier, matched three different ways so the whole net is exercised:
+       semantic element, ARIA role, and the legacy hashed-class pattern. -->
+  <article id="card-article">card by element</article>
+  <div id="card-role" role="region">card by role</div>
+  <div id="card-class" class="Card__root">card by class</div>
+  <aside id="card-aside">card by aside</aside>
+
+  <!-- Raised tier: anything that floats over the page. -->
+  <div id="raised-dialog" role="dialog">raised by role</div>
+  <div id="raised-menu" role="menu">raised menu</div>
+  <div id="raised-listbox" role="listbox">raised listbox</div>
+  <div id="raised-paper" class="MuiPaper-root">raised paper</div>
+
+  <input id="control-input" value="input" />
+
+  <script>
+    window.__probe = function (id) {
+      const cs = getComputedStyle(document.getElementById(id));
+      return { background: cs.backgroundColor, borderColor: cs.borderTopColor };
+    };
+
+    window.__surfaces = function () {
+      return {
+        page: getComputedStyle(document.body).backgroundColor,
+        card: window.__probe('card-article').background,
+        raised: window.__probe('raised-dialog').background,
+        input: window.__probe('control-input').background,
+        cardBorder: window.__probe('card-article').borderColor,
+      };
+    };
+  </script>
+</body>
+</html>

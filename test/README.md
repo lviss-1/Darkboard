@@ -214,6 +214,30 @@ The title check matters beyond looks. A gradient clipped to text needs a
 transparent fill, so if the gradient ever fails to paint the title disappears
 entirely.
 
+## fixture-surfaces.html
+
+Covers the surface ladder in section 1 and the tier assignments in sections 6
+and 10.
+
+Two things were wrong before. Elevation was only applied when a rule matched a
+hashed class name like `Card__`, which much of Blackboard Ultra does not use.
+And the tokens could not express a hierarchy anyway: page to card measured
+1.050:1 and card to raised 1.088:1, steps too small to see, so panels read flat
+however well the selectors matched.
+
+Each tier is matched three ways in the fixture, by semantic element, by ARIA
+role and by the legacy class pattern, because roles are the reliable half of
+the net. Blackboard's class names are JSS-generated, but its roles are stable
+since assistive technology depends on them.
+
+| Check | Expected |
+|---|---|
+| page, card, raised backgrounds | three distinct values |
+| page to card, card to raised | at least 1.08:1 each, measured |
+| Card border against card fill | at least 1.2:1 |
+| `article`, `aside`, `[role="region"]`, `Card__` | resolve to the card fill |
+| `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`, MUI paper | resolve to the raised fill |
+
 ## contrast.js
 
 Shared WCAG luminance and contrast helper, loaded by the fixtures that assert

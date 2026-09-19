@@ -59,8 +59,8 @@ html[data-bb-dark] [class*="MuiPopoverroot"] {
 html[data-bb-dark] [class*="MuiPaperroot"],
 html[data-bb-dark] [class*="MuiMenu-paper"],
 html[data-bb-dark] [class*="MuiPaper"] {
-  background-color: var(--bg-secondary) !important;
-  background: var(--bg-secondary) !important;
+  background-color: var(--bg-raised) !important;
+  background: var(--bg-raised) !important;
   border: 1px solid var(--border-subtle) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8) !important;
 }
@@ -79,9 +79,14 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
 /* ─── 1. PALETTE ─────────────────────────────────────────────────────────── */
 :root {
   /* Backgrounds — layered blacks */
+  /* A surface ladder, not four shades of the same black. Each step is a
+     perceptible lift on the one below: the previous values put page to card at
+     1.050:1 and card to raised at 1.088:1, which is invisible, so panels read
+     flat however well the selectors matched them. */
   --bg-primary:       #0a0a0c;   /* page canvas — near-black */
-  --bg-secondary:     #111115;   /* cards, panels */
-  --bg-tertiary:      #1a1a20;   /* hover states, inputs, raised surfaces */
+  --bg-secondary:     #16161c;   /* cards, panels — 1.10:1 on the canvas */
+  --bg-tertiary:      #1e1e26;   /* inputs, hover states — 1.20:1 */
+  --bg-raised:        #24242e;   /* dialogs, menus, anything floating — 1.29:1 */
   --bg-sidebar:       #0d0d10;   /* left-nav rail */
 
   /* Text — warm whites */
@@ -304,9 +309,11 @@ html[data-bb-dark] [class*="Module__"],
 html[data-bb-dark] [class*="ContentBlock__"],
 html[data-bb-dark] .bb-card,
 html[data-bb-dark] .course-card,
-html[data-bb-dark] article {
+html[data-bb-dark] article,
+html[data-bb-dark] [role="article"],
+html[data-bb-dark] [role="region"] {
   background-color: var(--bg-secondary) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border: 1px solid var(--border-strong) !important;
   box-shadow: var(--shadow-card) !important;
   color: var(--text-main) !important;
 }
@@ -441,11 +448,15 @@ html[data-bb-dark] td {
 
 /* ─── 10. MODALS & OVERLAYS ──────────────────────────────────────────────── */
 html[data-bb-dark] [role="dialog"],
+html[data-bb-dark] [role="alertdialog"],
+html[data-bb-dark] [role="menu"],
+html[data-bb-dark] [role="tooltip"],
+html[data-bb-dark] dialog,
 html[data-bb-dark] [class*="Modal__"],
 html[data-bb-dark] [class*="Drawer__"],
 html[data-bb-dark] [class*="Flyout__"] {
-  background-color: var(--bg-secondary) !important;
-  border: 1px solid var(--border-subtle) !important;
+  background-color: var(--bg-raised) !important;
+  border: 1px solid var(--border-strong) !important;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7) !important;
 }
 
@@ -1108,12 +1119,16 @@ html[data-bb-dark] [class*="ActivityStream"] > *:hover {
 
 /* Filter dropdown — dark, no border glow */
 html[data-bb-dark] [class*="filter"],
-html[data-bb-dark] [class*="Filter"],
-html[data-bb-dark] [role="listbox"],
-html[data-bb-dark] [role="option"] {
+html[data-bb-dark] [class*="Filter"] {
   background-color: var(--bg-tertiary) !important;
   color: var(--text-main) !important;
   border: 1px solid var(--border-strong) !important;
+}
+
+html[data-bb-dark] [role="listbox"],
+html[data-bb-dark] [role="option"] {
+  background-color: var(--bg-raised) !important;
+  color: var(--text-main) !important;
 }
 
 html[data-bb-dark] [role="option"]:hover {

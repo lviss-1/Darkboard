@@ -509,24 +509,15 @@ html[data-bb-dark] [class*="status-error"] {
   color: var(--accent-danger) !important;
 }
 
-/* ─── 12b. GRADE SCORE COLORS — green / yellow / red by performance ──────
-   Blackboard renders grades as text like "50 / 50" or "63 / 65" inside
-   a <td> or [role="gridcell"]. We can't read the numbers in CSS alone,
-   so we use Blackboard's own data attributes and aria labels which encode
-   the grade status, plus target the colored pill/badge it renders on the
-   overview grades page (the yellow pill seen earlier).
+/* ─── 12b. GRADE SCORE COLORS ─────────────────────────────────────────────
+   CSS cannot read the numbers, so content.js does the arithmetic and stamps
+   data-grade-status. The thresholds live there: good at 90, fair at 80,
+   average at 70, poor below that.
 
-   Thresholds (matching Blackboard's own defaults):
-     ≥ 90%  → green   (A)
-     70–89% → yellow  (B/C)
-     < 70%  → red     (D/F)                                               */
-
-/* ─── GRADEBOOK COLOR OVERRIDES ───────────────
-   Forces the color onto the container AND any nested spans.
-   Uses standard thresholds: >=90 (Green), 70-89 (Yellow), <70 (Red) */
-
-/* ─── GRADEBOOK SCORE PILLS ───────────────
-   Targets ONLY the exact number element. Adds a tinted background pill. */
+   Two presentations share those four statuses. An inline host also gets
+   .darkboard-pill and renders as a filled pill. A block host gets the
+   attribute alone and renders as coloured text further down, because the
+   pill's inline-flex would collapse a table cell.                         */
 
 html[data-bb-dark] .darkboard-pill {
   display: inline-flex !important;
@@ -540,32 +531,33 @@ html[data-bb-dark] .darkboard-pill {
   width: max-content !important;
 }
 
-/* Green A-Grades */
+/* Dark text on the fill, not white. White measured 1.4:1 on the lime and
+   1.7:1 on the green and amber, against a 4.5:1 AA requirement. The page black
+   clears AAA on all four: 11.3:1 good, 13.0:1 fair, 11.8:1 average, 7.1:1 poor.
+   The fills are flat rather than 90% alpha so the ratio does not shift with
+   whatever surface ends up behind the pill. */
 html[data-bb-dark] .darkboard-pill[data-grade-status="good"] {
-  background-color: rgba(74, 222, 128, 0.90) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(74, 222, 128, 0.90) !important;
+  background-color: var(--accent-success) !important;
+  color: var(--bg-primary) !important;
+  border: 1px solid var(--accent-success) !important;
 }
 
-/* Lime B-Grades (80–89%) */
 html[data-bb-dark] .darkboard-pill[data-grade-status="fair"] {
-  background-color: rgba(163, 230, 53, 0.90) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(163, 230, 53, 0.90) !important;
+  background-color: var(--accent-fair) !important;
+  color: var(--bg-primary) !important;
+  border: 1px solid var(--accent-fair) !important;
 }
 
-/* Yellow C-Grades (70–79%) */
 html[data-bb-dark] .darkboard-pill[data-grade-status="average"] {
-  background-color: rgba(251, 191, 36, 0.90) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(251, 191, 36, 0.90) !important;
+  background-color: var(--accent-warn) !important;
+  color: var(--bg-primary) !important;
+  border: 1px solid var(--accent-warn) !important;
 }
 
-/* Red D/F-Grades */
 html[data-bb-dark] .darkboard-pill[data-grade-status="poor"] {
-  background-color: rgba(248, 113, 113, 0.90) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(248, 113, 113, 0.90) !important;
+  background-color: var(--accent-danger) !important;
+  color: var(--bg-primary) !important;
+  border: 1px solid var(--accent-danger) !important;
 }
 
 /* Prevent child elements inside a grade pill from painting over the pill's

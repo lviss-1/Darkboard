@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>Darkboard fixture — grade matching</title>
 
+  <script src="contrast.js"></script>
+
   <script>
     window.__cssReady = new Promise((resolve) => {
       const link = document.createElement('link');
@@ -85,10 +87,13 @@
 
     window.__probe = function (id) {
       const el = document.getElementById(id);
+      const cs = getComputedStyle(el);
       return {
         status: el.dataset.gradeStatus || null,
         pill: el.classList.contains('darkboard-pill'),
-        display: getComputedStyle(el).display,
+        display: cs.display,
+        color: cs.color,
+        background: cs.backgroundColor,
       };
     };
 

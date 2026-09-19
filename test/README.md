@@ -102,10 +102,15 @@ Expected:
 | `50% complete`, `Progress: 50%`, `due Fri 12/5` | untouched |
 | `47 / 50` outside every grade root | untouched |
 | `47 / 50` in a bare table cell | stamped, no pill, `display` still `table-cell` |
+| Every pill's text against its fill | at least 4.5:1 |
 
 The cell case matters because the pill sets `display: inline-flex`, which
 collapses a cell and breaks the row. Block hosts get the status attribute only
 and render as coloured bold text through rules already in the stylesheet.
+
+Pill contrast is measured through `contrast.js` rather than asserted against
+fixed colors. White text on the fills measured 1.4:1 on the lime and 1.7:1 on
+the green and amber; dark text now measures 13.1, 11.9, 11.4 and 7.2 to one.
 
 ## fixture-buttons.html
 

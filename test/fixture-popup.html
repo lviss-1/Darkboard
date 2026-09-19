@@ -52,15 +52,34 @@
       const token = (name) => root.getPropertyValue(name).trim();
       const colorOf = (sel) => win.getComputedStyle(doc.querySelector(sel)).color;
 
+      // Elements carrying their own text, so a wrapper's inherited size does
+      // not mask a child that is actually too small.
+      const undersized = [...doc.querySelectorAll('*')]
+        .filter(el => [...el.childNodes].some(n => n.nodeType === 3 && n.data.trim()))
+        .map(el => ({
+          label: el.className || el.tagName,
+          size: parseFloat(win.getComputedStyle(el).fontSize),
+        }))
+        .filter(entry => entry.size < 11);
+
+      const logo = doc.querySelector('.logo-icon');
+      const pills = [...doc.querySelectorAll('.scope-pill')].map(el => el.textContent.trim());
+
       return {
         background: win.getComputedStyle(doc.body).backgroundColor,
-        muted: colorOf('.status-text'),
+        muted: colorOf('.toggle-subtitle'),
         link: colorOf('.footer-text a'),
         accentLight: token('--c-accent-light'),
         focusRuleUsesToken: [...doc.styleSheets]
           .flatMap(sheet => [...sheet.cssRules])
           .some(rule => (rule.selectorText || '').includes('focus-visible')
                      && (rule.style.outline || '').includes('--c-accent-light')),
+        undersized,
+        logoTag: logo.tagName,
+        logoSrc: logo.getAttribute('src') || '',
+        appNameFill: win.getComputedStyle(doc.querySelector('.app-name')).webkitTextFillColor,
+        pills,
+        hasEmoji: /\p{Extended_Pictographic}/u.test(doc.body.textContent),
       };
     };
   </script>

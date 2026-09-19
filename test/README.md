@@ -184,6 +184,36 @@ assertion and the perf fixture reports a meaningless zero. Both pages shim
 shim uses a zero delay rather than 16 ms so a frame floor does not swamp the
 work being measured.
 
+## fixture-popup.html
+
+Covers the popup's accent, contrast, type sizes and copy.
+
+The popup cannot be loaded and probed directly: `popup.js` calls
+`chrome.runtime.getManifest()` at the top level and throws without the
+extension APIs. The fixture fetches the page and re-renders it through an
+iframe `srcdoc` with a stub injected ahead of it. `srcdoc` resolves relative
+URLs against the fixture, so a `<base href="../">` is what keeps the icon,
+fonts and script pointing at the repo root.
+
+The focus ring is asserted through the custom property rather than a computed
+style, because `:focus-visible` does not reliably match on programmatic focus
+for a checkbox. The fixture also confirms the rule actually references that
+token, so the two cannot drift apart.
+
+| Check | Expected |
+|---|---|
+| Muted text, footer link vs background | at least 4.5:1 |
+| Focus ring vs background | at least 3:1 |
+| Every element carrying its own text | at least 11px |
+| Logo | an `img` whose src ends `icon48.png` |
+| Title | `-webkit-text-fill-color` not transparent |
+| Scope pills | contain `online.iona.edu` |
+| Whole popup | no emoji |
+
+The title check matters beyond looks. A gradient clipped to text needs a
+transparent fill, so if the gradient ever fails to paint the title disappears
+entirely.
+
 ## contrast.js
 
 Shared WCAG luminance and contrast helper, loaded by the fixtures that assert

@@ -43,6 +43,8 @@ Manifest V3, vanilla JS content script + background service worker, `chrome.stor
 
 - `host_permissions` is currently scoped to `online.iona.edu` and `*.blackboardcdn.com` — one university. Broadening that match pattern to every Blackboard-hosted institution is the planned v2, and the natural next step for wider adoption.
 
+- `googlef3331e5ec48014da.html` at the repo root is a Google Search Console verification token, not a stray file. Deleting it breaks domain verification.
+
 ## Install
 
 **From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)

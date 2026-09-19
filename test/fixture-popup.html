@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — popup</title>
+  <script>
+    // Loaded through document.write so it stays synchronous while still carrying
+    // a cache buster; http.server otherwise serves a stale helper and the
+    // threshold assertions below quietly test the wrong code.
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+</head>
+<body>
+
+  <iframe id="popup" width="320" height="420" style="border: 0"></iframe>
+
+  <script>
+    // popup.js calls chrome.runtime.getManifest() at the top level, so the page
+    // cannot simply be loaded and probed. Fetching it and re-rendering through
+    // srcdoc allows a stub to be injected ahead of it. srcdoc resolves relative
+    // URLs against this document, so <base> is what keeps the icon, fonts and
+    // script pointing at the repo root.
+    const STUB = `<base href="../">
+      <script>
+        window.chrome = {
+          runtime: {
+            getManifest: () => ({ version: '0.0.0' }),
+            sendMessage: () => Promise.resolve(),
+          },
+          storage: { local: { get: (k, cb) => cb({}), set() {} } },
+        };
+      <\/script>`;
+
+    window.__ready = (async () => {
+      const html = await fetch('../popup.html?cb=' + Date.now()).then(r => r.text());
+      const frame = document.getElementById('popup');
+
+      await new Promise((resolve) => {
+        frame.addEventListener('load', resolve, { once: true });
+        frame.srcdoc = html.replace('<head>', '<head>' + STUB);
+      });
+
+      // Give the injected script and webfonts a frame to settle.
+      await new Promise(r => setTimeout(r, 200));
+      return frame.contentDocument;
+    })();
+
+    window.__probe = async function () {
+      const doc = await window.__ready;
+      const win = doc.defaultView;
+      const root = win.getComputedStyle(doc.documentElement);
+      const token = (name) => root.getPropertyValue(name).trim();
+      const colorOf = (sel) => win.getComputedStyle(doc.querySelector(sel)).color;
+
+      return {
+        background: win.getComputedStyle(doc.body).backgroundColor,
+        muted: colorOf('.status-text'),
+        link: colorOf('.footer-text a'),
+        accentLight: token('--c-accent-light'),
+        focusRuleUsesToken: [...doc.styleSheets]
+          .flatMap(sheet => [...sheet.cssRules])
+          .some(rule => (rule.selectorText || '').includes('focus-visible')
+                     && (rule.style.outline || '').includes('--c-accent-light')),
+      };
+    };
+  </script>
+</body>
+</html>

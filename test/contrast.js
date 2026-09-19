@@ -7,10 +7,24 @@
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
   }
 
+  // Computed styles serialize to rgb(), but a custom property read back through
+  // getPropertyValue keeps whatever spelling the author used, so hex is handled
+  // too rather than forcing callers to convert.
   function parse(color) {
-    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (!m) throw new Error('cannot parse color: ' + color);
-    return [+m[1], +m[2], +m[3]];
+    const value = color.trim();
+
+    const rgb = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgb) return [+rgb[1], +rgb[2], +rgb[3]];
+
+    const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      const h = hex[1].length === 3
+        ? hex[1].split('').map(ch => ch + ch).join('')
+        : hex[1];
+      return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+    }
+
+    throw new Error('cannot parse color: ' + color);
   }
 
   function luminance(color) {

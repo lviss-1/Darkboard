@@ -5,7 +5,12 @@
   <meta charset="UTF-8" />
   <title>Darkboard fixture — buttons</title>
 
-  <script src="contrast.js"></script>
+  <script>
+    // Loaded through document.write so it stays synchronous while still carrying
+    // a cache buster; http.server otherwise serves a stale helper and the
+    // threshold assertions below quietly test the wrong code.
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+  </script>
 
   <script>
     window.__cssReady = new Promise((resolve) => {

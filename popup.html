@@ -44,6 +44,9 @@
       --c-border:    #2a1820;
       --c-accent:    #6d1a36;
       --c-accent-2:  #8a2044;
+      /* Deep maroon is 1.74:1 on --c-bg, short of the 3:1 a focus indicator
+         needs. This is the theme's --text-link, at 6.00:1. */
+      --c-accent-light: #c9748e;
       --c-on:        #4ade80;
       --c-off:       #3a3a42;
       --c-text:      #f0eee8;
@@ -198,12 +201,12 @@
 
     input:checked + .track::after {
       transform: translateX(24px);
-      box-shadow: 0 0 10px rgba(92, 124, 250, 0.6);
+      box-shadow: 0 0 10px rgba(201, 116, 142, 0.5);
     }
 
     /* Keyboard focus ring — only visible for keyboard nav, suppressed for mouse clicks */
     .switch input:focus-visible + .track {
-      outline: 2px solid #5c7cfa;
+      outline: 2px solid var(--c-accent-light);
       outline-offset: 3px;
     }
 

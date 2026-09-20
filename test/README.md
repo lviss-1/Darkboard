@@ -100,7 +100,7 @@ Expected:
 | `Grade posted: 47 / 50` in a stream item | stamped `good` |
 | `Attempt 1 / 3`, `Attempt: 1 / 3`, `Question 4 / 10`, `Page 2 / 10` | untouched |
 | `50% complete`, `Progress: 50%`, `due Fri 12/5` | untouched |
-| `47 / 50` outside every grade root | untouched |
+| `47 / 50` outside every grade root | stamped; scanning is no longer gated on containers |
 | `47 / 50` in a bare table cell | stamped, no pill, `display` still `table-cell` |
 | Every pill's text against its fill | at least 4.5:1 |
 
@@ -282,6 +282,46 @@ colour and rendered as plain text with no affordance.
 | `<a class="btn">`, `<a role="button">` | not the link colour, visible border, transparent background |
 | `<a class="btn btn-primary">` | maroon fill, white text, at least 4.5:1 |
 | `<a class="Button--primary">` | still maroon, to catch a regression from the new rules outranking section 8 |
+
+## grades/fixture-gradebook.html
+
+The first fixture built from how Blackboard actually renders, rather than from
+a guess. It exists because the colorizer was scoped to container class names
+that do not appear on the real gradebook, so the walk reached nothing and the
+feature died silently while every other fixture kept passing.
+
+It reproduces the two conditions that caused that, deliberately: no element
+carries a class the stylesheet recognises, and every cell is a `div` rather
+than a `span`.
+
+**The directory name is load-bearing.** The page sits under `test/grades/`
+because the colorizer reads `location.pathname` to decide whether a bare
+integer pair like `9 / 10` is a score or a calendar date. Moving this file out
+of a `/grades` path changes what it tests.
+
+```js
+await window.__scriptReady;
+__probe('cell-partial')   // { hostTag, hostDisplay, pillTag, status, ... }
+```
+
+| Check | Expected |
+|---|---|
+| `7.5 / 10`, `10.5 / 10` in a class-less div | stamped and pilled |
+| `9 / 10` on a `/grades` path | scored, not rejected as a date |
+| `80%` in a span | pill applied to the host directly |
+| Block host | keeps `display: block`, carries no attribute itself |
+| The pill | a wrapper `span` rendering `inline-flex` |
+| `Not graded` | untouched |
+
+Run it against the previous implementation with `?impl=` to see the failure it
+was written for: zero stamped, zero pills.
+
+## A note on fixture HTML caching
+
+The fixtures cache-bust the assets they load, but not themselves. After editing
+a fixture's own markup or probes, add a throwaway query such as `?v=2`, or the
+browser will serve the previous copy and you will be reading stale assertions
+against current code.
 
 ## contrast.js
 

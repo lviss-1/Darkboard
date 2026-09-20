@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — real gradebook shape</title>
+
+  <script>
+    // Browsers pause requestAnimationFrame in a hidden tab and the grade
+    // observer debounces through it, so without this nothing gets stamped.
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        if (document.hidden) return setTimeout(() => fn(performance.now()), 0);
+        return native(fn);
+      };
+    })();
+
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../../src/dark-mode.css?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <!-- This page lives under a /grades path on purpose. That is the signal the
+       colorizer uses to read a bare integer pair as a score rather than a date,
+       replacing the container class names that turned out not to exist.
+
+       Nothing here carries a class the stylesheet knows about, and every cell
+       is a div. That combination is what silently killed the feature: the walk
+       was gated on those class names, and the pill was withheld from block
+       hosts. Both are reproduced deliberately. -->
+  <div class="jss1041">
+    <div role="table" class="jss2277">
+      <div role="row">
+        <div role="cell">Recitation participation grade</div>
+        <div role="cell" class="jss3310" id="cell-partial">7.5 / 10</div>
+      </div>
+      <div role="row">
+        <div role="cell">Quiz 1</div>
+        <div role="cell" class="jss3310" id="cell-integer">9 / 10</div>
+      </div>
+      <div role="row">
+        <div role="cell">Quiz 2</div>
+        <div role="cell" class="jss3310" id="cell-over">10.5 / 10</div>
+      </div>
+      <div role="row">
+        <div role="cell">Exam 1</div>
+        <div role="cell" class="jss3310" id="cell-ungraded">Not graded</div>
+      </div>
+    </div>
+
+    <span id="current-grade">80%</span>
+  </div>
+
+  <script>
+    (function () {
+      const listeners = [];
+      window.chrome = {
+        storage: { local: { get(_k, cb) { setTimeout(() => cb({ darkModeEnabled: true }), 0); }, set() {} } },
+        runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } },
+      };
+    })();
+
+    window.__probe = function (id) {
+      const host = document.getElementById(id);
+      const pill = host.classList.contains('darkboard-pill')
+        ? host
+        : host.querySelector('.darkboard-pill');
+
+      return {
+        hostTag: host.tagName,
+        hostDisplay: getComputedStyle(host).display,
+        hostStamped: !!host.dataset.gradeStatus,
+        pillTag: pill && pill.tagName,
+        status: pill && pill.dataset.gradeStatus,
+        pillDisplay: pill && getComputedStyle(pill).display,
+        background: pill && getComputedStyle(pill).backgroundColor,
+        color: pill && getComputedStyle(pill).color,
+        text: host.textContent.trim(),
+      };
+    };
+
+    window.__scriptReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      const impl = new URLSearchParams(location.search).get('impl') || '../../src/content.js';
+      s.src = impl + '?cb=' + Date.now();
+      s.onload = resolve;
+      document.body.appendChild(s);
+    });
+  </script>
+</body>
+</html>

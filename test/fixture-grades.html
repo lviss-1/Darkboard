@@ -72,6 +72,11 @@
     <span id="r-duedate">due Fri 12/5</span>
   </div>
 
+  <!-- Outside every known grade container. This is stamped now: scanning is no
+       longer gated on container class names, because guessing those wrong is
+       what silently killed the feature on the real gradebook. The anchored
+       pattern and the keyword guards above are what hold back false positives,
+       and the rejection cases prove they still do. -->
   <div id="outside-any-root">
     <span id="o-score">47 / 50</span>
   </div>
@@ -91,14 +96,21 @@
     })();
 
     window.__probe = function (id) {
-      const el = document.getElementById(id);
-      const cs = getComputedStyle(el);
+      const host = document.getElementById(id);
+      // An inline host takes the pill itself; a block host gets a wrapper, so
+      // the pill has to be looked for in both places.
+      const pill = host.classList.contains('darkboard-pill')
+        ? host
+        : host.querySelector('.darkboard-pill');
+      const styled = getComputedStyle(pill || host);
+
       return {
-        status: el.dataset.gradeStatus || null,
-        pill: el.classList.contains('darkboard-pill'),
-        display: cs.display,
-        color: cs.color,
-        background: cs.backgroundColor,
+        status: (pill && pill.dataset.gradeStatus) || host.dataset.gradeStatus || null,
+        pill: !!pill,
+        wrapped: !!pill && pill !== host,
+        display: getComputedStyle(host).display,
+        color: styled.color,
+        background: styled.backgroundColor,
       };
     };
 

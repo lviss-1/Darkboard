@@ -245,8 +245,10 @@ function runStreamPass(roots) {
 // CSS cannot do arithmetic, so JS reads grade strings, calculates the
 // percentage, and stamps a data attribute that CSS rules target.
 
-// Scanning is confined to these regions. Most Blackboard pages match none of
-// them and cost nothing beyond the lookup.
+// A hint, not a gate. These were guesses at Blackboard's class names, and when
+// they matched nothing the walk reached nothing and the feature silently died.
+// They now only help answer whether a bare integer pair is a score or a date,
+// alongside the URL check below.
 const GRADEBOOK_SELECTORS = [
   'bb-grades-student-attempts',
   'bb-grades-student',
@@ -264,16 +266,7 @@ const GRADEBOOK_SELECTORS = [
   '.student-grades-wrapper'
 ];
 
-// Included so a posted grade in the activity feed still gets styled, but kept
-// separate: the stream is full of dates, so it needs the stricter reading.
-const GRADE_STREAM_SELECTORS = [
-  'bb-activity-stream',
-  'li.stream-item-container',
-  '[class*="stream-item"]'
-];
-
 const GRADEBOOK_ROOTS = GRADEBOOK_SELECTORS.join(',');
-const GRADE_ROOTS = GRADEBOOK_SELECTORS.concat(GRADE_STREAM_SELECTORS).join(',');
 
 // A leading label is accepted only when it ends in a delimiter. That is what
 // separates "Score: 47 / 50" from "Question 4 / 10", and it does the work the
@@ -285,10 +278,23 @@ const DATE_WORDS = /\b(due|sunday|monday|tuesday|wednesday|thursday|friday|satur
 const COUNTER_WORDS = /\b(attempts?|questions?|pages?|steps?|items?|modules?|slides?|versions?|try|tries|credits?|characters?|words?)\b/i;
 const PROGRESS_WORDS = /\b(complete|completed|progress|remaining|attendance|viewed|watched)\b/i;
 
-// The pill sets display: inline-flex, which collapses a table cell and breaks
-// the row. Block hosts get the status attribute only and render as coloured
-// bold text through the rules already in dark-mode.css.
+// The pill sets display: inline-flex, which would collapse a block host such
+// as a table cell. Inline hosts take the pill directly; block hosts get a
+// wrapper instead, below.
 const INLINE_HOSTS = new Set(['SPAN', 'B', 'STRONG', 'EM', 'I', 'A', 'LABEL', 'SMALL', 'MARK']);
+
+// Scanning is no longer confined to known containers, so the walk now reaches
+// text that is not rendered prose. Wrapping a node inside one of these would be
+// invisible at best and would corrupt inline JSON at worst.
+const SKIP_HOSTS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'TITLE']);
+
+// Whether a bare integer pair should read as a score rather than a date. The
+// URL is the durable signal: Blackboard's gradebook lives at a /grades path,
+// where a JSS-generated container class name can be renamed at any time. The
+// container match stays as a fallback for grade widgets on other pages.
+function inGradebookContext(el) {
+  return /\/grades(\/|$)/.test(location.pathname) || !!el.closest(GRADEBOOK_ROOTS);
+}
 
 // "9/19" and "9/10" are structurally identical; only context separates a date
 // from a quiz score. Inside a gradebook it is a score. Anywhere else a bare
@@ -302,6 +308,7 @@ function looksLikeDate(text, earned, total) {
 function considerGradeText(node) {
   const el = node.parentElement;
   if (!el || el.dataset.gradeStatus) return;
+  if (SKIP_HOSTS.has(el.tagName)) return;
 
   const text = node.data.replace(/\s+/g, ' ').trim();
   if (!text) return;
@@ -316,7 +323,7 @@ function considerGradeText(node) {
     const earned = parseFloat(fractional[1]);
     const total = parseFloat(fractional[2]);
     if (total <= 0) return;
-    if (!el.closest(GRADEBOOK_ROOTS) && looksLikeDate(text, earned, total)) return;
+    if (!inGradebookContext(el) && looksLikeDate(text, earned, total)) return;
     pct = (earned / total) * 100;
   } else {
     const percentage = text.match(PERCENTAGE);
@@ -324,8 +331,22 @@ function considerGradeText(node) {
     pct = parseFloat(percentage[1]);
   }
 
-  el.dataset.gradeStatus = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
-  if (INLINE_HOSTS.has(el.tagName)) el.classList.add('darkboard-pill');
+  const status = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
+
+  if (INLINE_HOSTS.has(el.tagName)) {
+    el.dataset.gradeStatus = status;
+    el.classList.add('darkboard-pill');
+    return;
+  }
+
+  // Nothing is stamped on a block host itself. If the framework reconciles the
+  // wrapper away, the host is left unmarked and the next pass re-wraps it;
+  // marking the host would make that repair impossible.
+  const pill = document.createElement('span');
+  pill.className = 'darkboard-pill';
+  pill.dataset.gradeStatus = status;
+  node.replaceWith(pill);
+  pill.appendChild(node);
 }
 
 // Walking text nodes instead of elements is what makes this linear: reading
@@ -338,22 +359,11 @@ function walkGrades(root) {
   while ((node = walker.nextNode())) considerGradeText(node);
 }
 
-function scanGradesIn(root) {
-  if (root.closest && root.closest(GRADE_ROOTS)) {
-    walkGrades(root);
-    return;
-  }
-
-  for (const region of resolveRoots(new Set(root.querySelectorAll(GRADE_ROOTS)))) {
-    walkGrades(region);
-  }
-}
-
 function scanGrades(roots) {
   if (!_darkEnabled || !document.body) return;
 
   for (const root of (roots && roots.length) ? roots : [document.body]) {
-    scanGradesIn(root);
+    walkGrades(root);
   }
 }
 

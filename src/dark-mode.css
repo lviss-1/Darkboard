@@ -757,12 +757,15 @@ html[data-bb-dark] body [class*="Backdrop__"] {
    rule does not catch them, and they would fall through to the universal
    `background-color: inherit` and come out opaque dark anyway.
 
-   The cost is that a genuinely open panel no longer gets a dimmed scrim. That
-   is a real loss and a small one — the panel still sits on a dark page, and on
-   every build we can observe, the scrim was not being drawn regardless.
-   Restoring it safely means deciding per element whether the backdrop is
-   really open, which only the computed style can answer; enforceStreamDark in
-   content.js is the pattern if it ever becomes worth it. */
+   The dim is no longer given up: reconcileScrims in content.js now decides per
+   element whether a backdrop is genuinely open, which is the "only the computed
+   style can answer it" note this comment used to end on. It writes an inline
+   !important, so it overrides these rules and the universal `inherit` in
+   section 3 without either being reordered.
+
+   These selectors stay as a safety net for the case where the content script
+   never loads. They are name-based and therefore incomplete by construction —
+   the pass is the real mechanism. See test/fixture-scrim.html. */
 html[data-bb-dark] body div.bb-offcanvas-overlay,
 html[data-bb-dark] body div[class*="offcanvas-overlay"],
 html[data-bb-dark] body div[class*="peek-panel-bg"],

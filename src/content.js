@@ -62,6 +62,7 @@ function writeMirror(enabled) {
 // Stamped on every element whose background we override inline, so the
 // override can be found and undone when dark mode is switched off.
 const MARK = 'data-darkboard-bg';
+const SCRIM_MARK = 'data-darkboard-scrim';
 
 // Kept in sync by init() and the message listener so the observers can
 // read it synchronously without an async storage round-trip. Seeded from the
@@ -391,12 +392,180 @@ function revertStreamDark() {
 function runStreamPass(roots) {
   if (!streamObserver) {
     enforceStreamDark(roots);
+    reconcileScrims();
     return;
   }
 
   streamObserver.disconnect();
   enforceStreamDark(roots);
+  // Inside the same detached window, and for the same reason: this writes to
+  // the style attribute too. It ignores `roots` because a scrim's state
+  // changes through a class on an ancestor as often as through its own
+  // mutation, and the candidate set is small enough that scoping it would buy
+  // nothing but a way to miss one.
+  reconcileScrims();
   streamObserver.observe(document.body, STREAM_OBSERVER_CONFIG);
+}
+
+// ─── Scrim Reconciliation ─────────────────────────────────────────────────
+// A modal backdrop is transparent until its modal opens. The universal rule in
+// section 3 of the stylesheet — `background-color: inherit !important` on `*` —
+// does not know that, so a mounted-but-closed scrim inherits the dark canvas
+// and becomes an opaque sheet over a page that is otherwise perfectly healthy.
+//
+// Measured on the live site rather than in a fixture: a fixed, full-viewport,
+// transparent div computes to rgb(10, 10, 12) with NO CLASS AT ALL. Names
+// carrying "overlay" or "backdrop" escape, because those are the two words
+// section 3 happens to list; `modal-dialog`, `bb-dialog-container` and
+// `modal-mask` all come out opaque page-black, and `ReactModal__Overlay` comes
+// out --bg-raised because section 10 mistakes it for the dialog itself.
+//
+// That exclusion list has been patched four times now — MUI backdrops, peek
+// backdrops, the bb- sweep, and modal scrims — and it cannot converge, because
+// the theme is being asked to enumerate names it has never seen. So this
+// decides by measurement instead, the same way enforceStreamDark does for
+// stream rows: look at the element, act only on what it actually is.
+
+// Finding candidates by name is fine. Name matching was only ever wrong as a
+// way to DECIDE about them; the geometric test below is what rules.
+const SCRIM_HINTS = [
+  '[class*="overlay" i]', '[class*="backdrop" i]', '[class*="scrim" i]',
+  '[class*="modal" i]', '[class*="dialog" i]', '[class*="mask" i]',
+  '[class*="peek" i]', '[class*="offcanvas" i]', '[class*="flyout" i]',
+  '[aria-modal="true"]',
+].join(',');
+
+const DIALOG_SELECTORS = '[role="dialog"],[role="alertdialog"],[aria-modal="true"],dialog';
+
+// A scrim covers the viewport. Anything smaller is a panel, a card or a
+// sliver, and none of those are this pass's business. Checked live: on a
+// normal course page with no modal open, zero elements clear this bar, so the
+// pass has nothing to get wrong until a real overlay appears.
+const SCRIM_COVERAGE = 0.85;
+
+// Confirmed by the user over full transparency and over the old 65%: the page
+// behind stays readable but is clearly pushed back.
+const SCRIM_DIM = 'rgba(0, 0, 0, 0.45)';
+
+function scrimCandidates() {
+  const found = new Set();
+  if (!document.body) return found;
+
+  for (const el of document.body.querySelectorAll(SCRIM_HINTS)) found.add(el);
+
+  // The name-free tier. A scrim is nearly always a sibling or an ancestor of
+  // the dialog it sits behind, so an open dialog leads straight to it whatever
+  // it happens to be called. Bounded to the depth of one subtree.
+  for (const dialog of document.querySelectorAll(DIALOG_SELECTORS)) {
+    for (let el = dialog; el && el !== document.body; el = el.parentElement) {
+      found.add(el);
+      if (el.parentElement) {
+        for (const sibling of el.parentElement.children) found.add(sibling);
+      }
+    }
+  }
+
+  for (const el of document.body.children) found.add(el);
+  return found;
+}
+
+// Whether an element shares a parent with an open dialog — the portal pattern
+// where the scrim and the dialog are rendered side by side.
+function besideDialog(el) {
+  const parent = el.parentElement;
+  if (!parent) return false;
+  for (const sibling of parent.children) {
+    if (sibling !== el && sibling.matches(DIALOG_SELECTORS)) return true;
+  }
+  return false;
+}
+
+function reconcileScrims() {
+  if (!_darkEnabled || !document.body) return;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!vw || !vh) return;
+
+  for (const el of scrimCandidates()) {
+    if (!el.isConnected) continue;
+
+    // The dialog is what the scrim sits behind. Clearing its background would
+    // hand back the white panel the theme exists to remove.
+    if (el.matches(DIALOG_SELECTORS)) continue;
+
+    const computed = window.getComputedStyle(el);
+    if (computed.position !== 'fixed' && computed.position !== 'absolute') continue;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width < vw * SCRIM_COVERAGE || rect.height < vh * SCRIM_COVERAGE) continue;
+
+    // Two different things reach this point, and they want opposite treatment.
+    //
+    // A bare scrim is empty: it exists only to put a wash over the page.
+    // A layer HOST carries the overlay's own content. Fluent UI's ms-Layer is
+    // the shape, and it is not hypothetical — Blackboard portals its menus and
+    // dialogs into one, as a direct child of body, fixed, full-viewport, and
+    // currently painted opaque rgb(10, 10, 12) by this theme. It is hidden
+    // while closed, so it does no harm until it opens; when it opens it covers
+    // the page. That is the reported bug.
+    const host = (el.textContent || '').trim() !== '';
+
+    // An `absolute` full-viewport element carrying content is a layout
+    // container — an app shell root that happens to be positioned — and
+    // repainting it would be this same blanket mistake in a new place. A
+    // `fixed` one is a viewport-level layer by definition, which is what a
+    // portal is.
+    if (host && computed.position !== 'fixed' && !besideDialog(el)) continue;
+
+    // These four properties are safe to read because the stylesheet never
+    // touches pointer-events or visibility on a real element, and sets opacity
+    // and display only on ::before/::after pseudo-elements. Verified against
+    // the live page before this was written; if that ever changes, this pass
+    // starts guessing.
+    const inert = computed.visibility === 'hidden'
+      || computed.display === 'none'
+      || parseFloat(computed.opacity) <= 0.01
+      || computed.pointerEvents === 'none'
+      || el.getAttribute('aria-hidden') === 'true';
+
+    // An inert scrim paints nothing; an active one dims. A host never paints
+    // either way — the panel inside it draws its own surface, and dimming here
+    // would double up with the dim its own scrim child is already applying.
+    //
+    // Note which way the uncertain cases fall: something we wrongly call inert
+    // costs a dim, and something we wrongly call active costs the whole page.
+    // Every signal above is a reason to paint less.
+    const want = (host || inert) ? 'clear' : 'dim';
+
+    // The mark records the decision; the priority check confirms our own
+    // declaration is still on the element, so this self-heals if Blackboard
+    // rewrites the style attribute.
+    if (el.getAttribute(SCRIM_MARK) === want
+        && el.style.getPropertyPriority('background-color') === 'important') continue;
+
+    // Inline, and important. That is the strongest declaration available to
+    // the author origin, so it beats the universal rule, section 18's inline
+    // catch-all and section 26's sweep without any of them being edited —
+    // confirmed live, where both 'transparent' and the dim survive the whole
+    // stylesheet. Reordering rules in a 2,200-line cascade is how this file
+    // grew its last three bugs.
+    el.style.setProperty('background-color', want === 'clear' ? 'transparent' : SCRIM_DIM, 'important');
+    el.style.setProperty('background-image', 'none', 'important');
+    el.style.setProperty('backdrop-filter', 'none', 'important');
+    el.setAttribute(SCRIM_MARK, want);
+  }
+}
+
+// Inline styles are not gated by [data-bb-dark], so switching dark mode off
+// has to take them back off by hand.
+function revertScrims() {
+  for (const el of document.querySelectorAll('[' + SCRIM_MARK + ']')) {
+    el.style.removeProperty('background-color');
+    el.style.removeProperty('background-image');
+    el.style.removeProperty('backdrop-filter');
+    el.removeAttribute(SCRIM_MARK);
+  }
 }
 
 // ─── Grade Colorizer ──────────────────────────────────────────────────────
@@ -636,6 +805,7 @@ function stopEnhancements() {
   }
 
   revertStreamDark();
+  revertScrims();
 }
 
 init();

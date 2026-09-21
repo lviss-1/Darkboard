@@ -715,6 +715,76 @@ the computed style can answer, which is what `enforceStreamDark` in
 The fixture asserts the open state is *not pale* rather than *is dark*, so it
 encodes that trade rather than quietly forbidding it.
 
+## fixture-scrim.html
+
+Covers the fourth instance of one bug: the theme painting an opaque background
+onto something that was transparent on purpose. Reported as "opening a modal
+turns the whole page behind it black, and with the extension off it does not".
+
+The cause is the universal rule in section 3 of the stylesheet:
+
+```css
+html[data-bb-dark] * { background-color: inherit !important; }
+```
+
+Every element inherits `body`'s opaque `--bg-primary`, so an element Blackboard
+deliberately left transparent becomes an opaque sheet. When it covers the
+viewport, the page disappears. Section 3 patches this with a list of names —
+`overlay`, `Overlay`, `backdrop`, `Backdrop` — and a scrim called anything else
+falls straight through.
+
+Measured on the live site rather than assumed: a fixed, full-viewport,
+transparent `div` computes to `rgb(10, 10, 12)` **with no class at all**.
+`modal-dialog`, `bb-dialog-container` and `modal-mask` all come out opaque
+page-black; `ReactModal__Overlay` comes out `--bg-raised`, because section 10
+mistakes it for the dialog. That list has now been patched four times — MUI
+backdrops, peek backdrops, the `bb-` sweep, modal scrims — and it cannot
+converge, because the theme is being asked to enumerate names it has never
+seen.
+
+So `reconcileScrims` in `content.js` decides by measurement instead, the same
+way `enforceStreamDark` does for stream rows. Names are still used to *find*
+candidates; they are no longer used to decide about them.
+
+| Element | Shape | Expected |
+|---|---|---|
+| `#closed-scrim` | fixed, full-viewport, empty, `pointer-events: none` | paints nothing |
+| `#open-scrim` | fixed, full-viewport, empty, beside a dialog | dims to `rgba(0, 0, 0, 0.45)` |
+| `#layer-host` | fixed, full-viewport, **carries content** | paints nothing |
+| `#dialog` | the dialog itself | keeps its opaque `--bg-raised` |
+| `#app-root` | **absolute**, full-viewport, carries content | never marked at all |
+
+Against the build before the fix it reports **five failures** and the
+screenshot is a dialog floating on a solid black page — the reported bug,
+reproduced.
+
+### Why a host and a scrim are different
+
+`#layer-host` is not hypothetical. It is Fluent UI's `ms-Layer--fixed`, taken
+from live Blackboard, where menus and dialogs are portalled into one as a
+direct child of `body`. On the real page it measures `rgb(10, 10, 12)`, full
+viewport — hidden only by `visibility` while closed, and covering everything
+the moment it opens.
+
+It has to end up **transparent, not dimmed**: the panel inside paints its own
+surface, and a dim here would double with the dim its own scrim child applies,
+veiling the page every time a context menu opens. Only a *bare* scrim — one
+with no content of its own — dims.
+
+The `#app-root` row guards the other direction. A full-viewport `absolute`
+element carrying content is an app shell that happens to be positioned, and
+repainting it would be the same blanket mistake in a new place. A `fixed` one
+is a viewport-level layer by definition, which is what a portal is — so the
+content guard applies only to `absolute`.
+
+### Which way the uncertain cases fall
+
+Something wrongly called inert costs a dim. Something wrongly called active
+costs the whole page. Every signal in the pass is therefore a reason to paint
+less, and the toggle-off assertions exist because these are inline styles,
+which `[data-bb-dark]` does not gate and which would otherwise survive turning
+the extension off.
+
 ## restyle.js
 
 Forces a genuine style resolution on an element before it is measured, which

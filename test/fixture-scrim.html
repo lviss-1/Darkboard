@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — modal scrims</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = () => setTimeout(resolve, 60);
+      link.onerror = () => setTimeout(resolve, 60);
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <script>
+    // requestAnimationFrame is paused in a hidden tab and the pass debounces
+    // through it, so without this the page appears to do nothing and every
+    // assertion fails for the wrong reason.
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        if (document.hidden) return setTimeout(() => fn(performance.now()), 0);
+        return native(fn);
+      };
+    })();
+  </script>
+
+  <style>
+    /* How a portal-rendered scrim is actually built: fixed, covering the
+       viewport, and setting NO background of its own. That is the whole point.
+       The closed one is hidden by letting clicks through; the open one is not.
+       Neither names itself "overlay" or "backdrop", which is exactly the case
+       the stylesheet's name list cannot see — measured on the live site, a
+       div like this comes out opaque rgb(10, 10, 12) even with no class. */
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+    }
+    .is-closed { pointer-events: none; }
+    .is-open   { pointer-events: auto; }
+
+    /* A positioned, full-viewport element that is NOT a scrim: it carries the
+       page's content. The pass must leave this alone, or it becomes the same
+       blanket mistake in a new place. */
+    #app-root {
+      position: absolute;
+      inset: 0;
+      padding: 20px;
+      font: 14px system-ui;
+    }
+
+    .dialog { position: fixed; top: 30%; left: 30%; width: 380px; z-index: 1000; padding: 16px; }
+  </style>
+</head>
+<body>
+
+  <div id="app-root">
+    <h1 id="heading">Course content behind the scrim</h1>
+    <p id="copy">If a scrim is painting when it should not be, this disappears.</p>
+  </div>
+
+  <!-- Mounted but closed. Must put no ink on the screen at all. -->
+  <div class="scrim is-closed modal-mask" id="closed-scrim"></div>
+
+  <!-- The shape taken from the live site: Fluent UI's ms-Layer, a body-level
+       portal host that is fixed, full-viewport, and carries the overlay's own
+       content. Measured on real Blackboard at rgb(10, 10, 12) — opaque
+       page-black — and hidden only by visibility while closed. It must end up
+       transparent whether open or closed: the panel inside paints its own
+       surface, and a dim here would double with the scrim's own. -->
+  <div class="scrim is-open ms-Layer ms-Layer--fixed" id="layer-host">
+    <div class="ms-Layer-content" id="layer-content">Contextual menu contents</div>
+  </div>
+
+  <!-- Open, and a sibling of the dialog: the portal shape. Must dim rather
+       than black out, so the page behind stays visible. -->
+  <div id="portal">
+    <div class="scrim is-open bb-dialog-container" id="open-scrim"></div>
+    <div class="dialog" role="dialog" aria-modal="true" id="dialog">
+      <h2 id="dialog-title">Delete File</h2>
+      <p id="dialog-copy">Are you sure you want to delete this file?</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const initialEnabled = !new URLSearchParams(location.search).has('off');
+      const listeners = [];
+      try { localStorage.removeItem('darkboard.enabled'); } catch (e) {}
+
+      window.chrome = {
+        storage: {
+          local: {
+            get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: initialEnabled }), 0); },
+            set() {},
+          },
+        },
+        runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } },
+      };
+
+      window.__fireToggle = function (enabled) {
+        listeners.forEach(fn => fn({ type: 'BB_DARK_MODE_TOGGLE', enabled }));
+      };
+
+      const parse = (v) => {
+        const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(v || '');
+        return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+      };
+
+      const state = (id) => {
+        const el = __restyleTree(document.getElementById(id));
+        const cs = getComputedStyle(el);
+        const bg = parse(cs.backgroundColor);
+        return {
+          bg: cs.backgroundColor,
+          alpha: bg ? bg.a : null,
+          painting: !!bg && bg.a > 0.01,
+          opaque: !!bg && bg.a > 0.99,
+          mark: el.getAttribute('data-darkboard-scrim'),
+          inline: el.style.getPropertyValue('background-color'),
+        };
+      };
+      window.__state = state;
+
+      window.__probe = function () {
+        const failures = [];
+        const closed = state('closed-scrim');
+        const open = state('open-scrim');
+        const dialog = state('dialog');
+        const appRoot = state('app-root');
+
+        // The reported bug. A closed scrim inherits the dark canvas and turns
+        // into a full-viewport opaque sheet; the page is fine underneath and
+        // nobody can see it.
+        if (closed.painting) {
+          failures.push('closed scrim is painting ' + closed.bg + ' (should paint nothing)');
+        }
+        if (closed.mark !== 'clear') {
+          failures.push('closed scrim mark is ' + closed.mark + ', expected "clear"');
+        }
+
+        // An open scrim dims. It must never be opaque — that is the same bug
+        // wearing a different hat, and it is what the screenshot shows.
+        if (open.opaque) {
+          failures.push('open scrim is OPAQUE ' + open.bg + ' — the page behind is gone');
+        }
+        if (!open.painting) {
+          failures.push('open scrim is not dimming at all: ' + open.bg);
+        }
+        if (open.alpha !== null && (open.alpha < 0.3 || open.alpha > 0.6)) {
+          failures.push('open scrim alpha is ' + open.alpha + ', expected ~0.45');
+        }
+        if (open.mark !== 'dim') {
+          failures.push('open scrim mark is ' + open.mark + ', expected "dim"');
+        }
+
+        // The dialog itself is not a scrim and must keep its raised surface.
+        if (!dialog.opaque) {
+          failures.push('dialog lost its opaque surface: ' + dialog.bg);
+        }
+        if (dialog.mark) {
+          failures.push('dialog was marked as a scrim');
+        }
+
+        // The false-positive guard: a positioned full-viewport element that
+        // carries content is a layout container, not a scrim.
+        if (appRoot.mark) {
+          failures.push('app root was marked as a scrim (' + appRoot.mark + ')');
+        }
+
+        // The Fluent layer host. Opaque here is the live bug; dimmed here
+        // would veil the whole page every time a context menu opens.
+        const layer = state('layer-host');
+        if (layer.painting) {
+          failures.push('layer host is painting ' + layer.bg + ' (should paint nothing)');
+        }
+        if (layer.mark !== 'clear') {
+          failures.push('layer host mark is ' + layer.mark + ', expected "clear"');
+        }
+
+        // And the page behind has to still be readable.
+        const heading = getComputedStyle(__restyleTree(document.getElementById('heading')));
+        if (__contrast(heading.color, '#0a0a0c') < 4.5) {
+          failures.push('heading is not readable against the page');
+        }
+
+        return { failures, closed, open, dialog, appRoot, layer: state('layer-host') };
+      };
+
+      // Switching dark mode off must take the inline styles back off with it:
+      // they are not gated by [data-bb-dark] and would otherwise persist.
+      window.__probeOff = function () {
+        const failures = [];
+        const marks = document.querySelectorAll('[data-darkboard-scrim]').length;
+        if (marks) failures.push(marks + ' scrim marks survived the toggle off');
+        for (const id of ['closed-scrim', 'open-scrim']) {
+          const inline = document.getElementById(id).style.getPropertyValue('background-color');
+          if (inline) failures.push(id + ' kept an inline background: ' + inline);
+        }
+        return { failures };
+      };
+    })();
+  </script>
+
+  <script>
+    window.__scriptReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = '../src/content.js?cb=' + Date.now();
+      s.onload = resolve;
+      document.body.appendChild(s);
+    });
+  </script>
+</body>
+</html>

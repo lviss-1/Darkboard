@@ -184,6 +184,24 @@ assertion and the perf fixture reports a meaningless zero. Both pages shim
 shim uses a zero delay rather than 16 ms so a frame floor does not swamp the
 work being measured.
 
+A hidden tab has a second, quieter failure mode, and this one does not make
+assertions fail — it makes them **pass for the wrong reason**. Chrome also
+defers style recalculation while a tab is hidden, so `getComputedStyle` hands
+back the user-agent value for any node that existed before the stylesheet
+attached. Links read `rgb(0, 0, 238)` and themed buttons `rgb(239, 239, 239)`
+with the correct rule sitting right there in the sheet, `document.styleSheets`
+fully populated and `element.matches()` agreeing it applies.
+
+The tell is that a node created *after* the stylesheet loads styles correctly,
+so it is a recalculation that never ran rather than a cascade that lost.
+Toggling `display` does not force it either, because an inherited property
+like `color` resolves against an ancestor the toggle never dirties.
+
+`restyle.js` is the answer; see below. **Any assertion reading a computed
+style should go through it.** The fixtures that currently do are
+`fixture-focus.html` and `fixture-hover.html`; the others read computed styles
+too and should be moved over the next time they are touched.
+
 ## fixture-popup.html
 
 Covers the popup's accent, contrast, type sizes and copy.
@@ -209,10 +227,26 @@ token, so the two cannot drift apart.
 | Title | `-webkit-text-fill-color` not transparent |
 | Scope pills | contain `online.iona.edu` |
 | Whole popup | no emoji |
+| Version tag | non-empty — proof `popup.js` survived load at all |
+| Out-of-scope note | hidden by default, shown under `?offscope` |
+| The toggle | enabled either way |
+| `.toggle-title` | labels `darkToggle`, so the text is a hit target |
+| Status text | carries `aria-live="polite"` |
 
 The title check matters beyond looks. A gradient clipped to text needs a
 transparent fill, so if the gradient ever fails to paint the title disappears
 entirely.
+
+**The stub has to answer everything `popup.js` touches at load.** It now reads
+`content_scripts[0].matches` out of the manifest and calls `chrome.tabs.query`
+with them to decide whether the active tab is one the extension themes; either
+one missing throws at the top level and takes the whole popup script with it,
+leaving every assertion above measuring a blank page. That is what the version
+tag check is for — it is the cheapest possible canary for "the script ran".
+
+`?offscope` makes the stubbed `tabs.query` return an empty list, which is how
+the popup concludes the tab is out of scope. Without it that branch is never
+exercised.
 
 ## fixture-surfaces.html
 
@@ -383,6 +417,76 @@ The fixtures cache-bust the assets they load, but not themselves. After editing
 a fixture's own markup or probes, add a throwaway query such as `?v=2`, or the
 browser will serve the previous copy and you will be reading stale assertions
 against current code.
+
+## fixture-focus.html
+
+Covers section 32 (focus), 33 (selection), 34 (motion and forced colours),
+the scrollbar in section 11 and the CTA rim in section 8. None of that tier
+had any coverage at all, and most of it had no implementation either.
+
+Before this, the only focusable thing on the page that showed where the
+keyboard was, was a text input. Everything else — buttons, links, tabs, menu
+items, options — had nothing, and inside the activity stream section 22
+actively removed the browser's own ring by forcing `outline-color:
+transparent` onto every descendant. Tabbing through a course was invisible.
+
+Two constraints on the fix are what the fixture actually guards:
+
+The ring has to be an **outline**, not a box-shadow, because that same section
+22 rule forces `box-shadow: none` and would erase a shadow-based ring exactly
+where it matters most. And it has to outrank (0,2,1), which is why the rule
+leads with `body` and lands at (0,2,2).
+
+Selectors are interrogated rather than focused, the same way
+`fixture-hover.html` does it: strip the pseudo-class and test
+`element.matches()` against the remainder. Two traps live in that technique
+and both are handled here —
+
+- The CSSOM normalises `body *:focus-visible` to `body :focus-visible`, so
+  naively removing the pseudo leaves a dangling descendant combinator.
+  `html[data-bb-dark] body` matches only `<body>`, not the button inside it,
+  and every assertion silently reports "no ring". The universal selector goes
+  back in wherever the strip leaves a trailing combinator.
+- A `CSSStyleRule` now carries its own empty `cssRules` list so CSS nesting
+  works, so `if (rule.cssRules)` recurses into every ordinary rule and yields
+  nothing. Only rules with `cssRules.length` are grouping rules.
+
+Declared values are read out of `cssText`, not `getPropertyValue`: a shorthand
+whose value contains `var()` — `outline: 2px solid var(--border-focus)` — is
+stored as a pending substitution and `getPropertyValue` returns `""`.
+
+| Check | Expected | Measured |
+|---|---|---|
+| button, link, `[role="tab"]`, `[role="option"]`, `[role="menuitem"]`, `[tabindex]` | a focus ring rule applies | — |
+| a button and a link **inside `.activity-stream`** | a ring too — section 22 must not win | — |
+| Ring vs all seven surfaces and the CTA fill | at least 3:1 | 5.47:1 worst |
+| Scrollbar thumb vs track | at least 3:1 | 5.48:1 |
+| `scrollbar-color` / `scrollbar-width` | present for non-Chromium | — |
+| `::selection` fill vs its text | at least 4.5:1 | 8.86:1 |
+| Primary CTA rim vs page | at least 3:1 | 3.57:1 |
+| A plain `div` and a `.darkboard-pill` | no transition rule |  — |
+| button, link, row | a transition rule applies | — |
+
+The pill exclusion is deliberate rather than incidental. The content script
+stamps those after a re-render, and a pill fading up from the page colour
+reads as a bug rather than a grade.
+
+## restyle.js
+
+Forces a genuine style resolution on an element before it is measured, which
+a hidden tab otherwise defers. See **A note on visibility** for the symptom;
+it is the one that makes assertions pass for the wrong reason rather than
+fail, so it is worth knowing by sight.
+
+```js
+__restyle(el)       // re-insert in place — same identity, same position
+__restyleTree(el)   // settle the whole subtree, for inherited properties
+__computed(el, 'color')
+```
+
+Re-inserting a node is what forces it. Toggling `display` is not enough for
+an inherited property, because the ancestor it descends from is never
+dirtied.
 
 ## contrast.js
 

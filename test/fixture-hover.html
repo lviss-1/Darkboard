@@ -7,6 +7,7 @@
 
   <script>
     document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
   </script>
 
   <script>
@@ -124,8 +125,10 @@
         .map(r => r.style.color);
     };
 
+    // Through __restyle, because a hidden pane otherwise serves the
+    // user-agent value for any node that predates the stylesheet.
     window.__probe = function (id) {
-      const cs = getComputedStyle(document.getElementById(id));
+      const cs = getComputedStyle(__restyleTree(document.getElementById(id)));
       return {
         color: cs.color,
         background: cs.backgroundColor,

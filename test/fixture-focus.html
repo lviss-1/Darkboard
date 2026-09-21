@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — focus, selection and motion</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    // ?css= points at an alternative stylesheet, which is how a change gets
+    // compared against the version before it.
+    window.__cssReady = new Promise((resolve) => {
+      const alt = new URLSearchParams(location.search).get('css');
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = (alt || '../src/dark-mode.css') + '?cb=' + Date.now();
+      // document.styleSheets is not reliably populated in the same microtask
+      // as onload, so the probes settle for a frame before reading it.
+      link.onload = () => setTimeout(resolve, 60);
+      link.onerror = () => setTimeout(resolve, 60);
+      document.head.appendChild(link);
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Every kind of control that had no focus indicator at all. -->
+  <button id="f-button">A button</button>
+  <a id="f-link" href="#">A link</a>
+  <div id="f-tab" role="tab">A tab</div>
+  <div id="f-option" role="option">An option</div>
+  <div id="f-menuitem" role="menuitem">A menu item</div>
+  <input id="f-input" value="An input" />
+  <div id="f-tabindex" tabindex="0">A focusable div</div>
+
+  <!-- Section 22 forces `outline-color: transparent` and `box-shadow: none`
+       onto every descendant of the activity stream, which erased the
+       browser's own ring exactly where the stream is most keyboard-driven.
+       The focus rule has to outrank it, and has to be an outline rather than
+       a shadow to survive the second half of that declaration. -->
+  <div class="activity-stream">
+    <button id="f-in-stream">A button inside the stream</button>
+    <a id="f-link-in-stream" href="#">A link inside the stream</a>
+  </div>
+
+  <!-- Motion is deliberately scoped to a named list. A bare div and a grade
+       pill must not be in it: the pill is stamped by the content script after
+       a re-render, and a pill fading up from the page colour reads as a bug. -->
+  <div id="m-plain">A plain div</div>
+  <span id="m-pill" class="darkboard-pill" data-grade-status="good">47 / 50</span>
+  <button id="m-button">A button</button>
+  <a id="m-link" href="#">A link</a>
+  <div id="m-row" class="table-row">A row</div>
+
+  <button id="cta" class="Button--primary">Primary CTA</button>
+
+  <script>
+    // Synthesising a real focus is unreliable — :focus-visible in particular
+    // does not match on programmatic focus for every element type — so the
+    // cascade is asked directly instead. For every rule whose selector
+    // carries the pseudo-class, strip it and test element.matches() against
+    // the remainder, which is exactly the set that would apply when focused.
+    // The comma split respects nesting depth, since a comma inside :is() or
+    // :has() is not a selector boundary. Same technique as fixture-hover.
+    function splitSelectors(selectorText) {
+      const out = [];
+      let depth = 0, current = '';
+      for (const ch of selectorText) {
+        if (ch === '(') depth++;
+        if (ch === ')') depth--;
+        if (ch === ',' && depth === 0) { out.push(current); current = ''; continue; }
+        current += ch;
+      }
+      if (current.trim()) out.push(current);
+      return out.map(s => s.trim());
+    }
+
+    // Stripping a pseudo-class can leave a selector that is not valid on its
+    // own. The CSSOM normalises `body *:focus-visible` to `body
+    // :focus-visible`, so removing the pseudo leaves a trailing descendant
+    // combinator — and `html[data-bb-dark] body` matches only <body>, not the
+    // button inside it, so every assertion silently passed as "no ring".
+    // Anywhere the removal leaves a dangling combinator or an empty selector,
+    // the universal selector goes back in.
+    function stripPseudo(sel, pseudo) {
+      let bare = pseudo ? sel.split(pseudo).join('') : sel;
+      // Tested before trimming: the trailing space is the whole signal that a
+      // combinator was left dangling, and trimming first throws it away.
+      if (bare === '' || /[\s>+~]$/.test(bare)) bare += '*';
+      return bare.trim();
+    }
+
+    // A rule's value has to be read out of cssText, not getPropertyValue: a
+    // shorthand whose value contains var() — `outline: 2px solid
+    // var(--border-focus)` — is stored as a pending substitution and
+    // getPropertyValue returns an empty string for it.
+    function declaredValue(rule, property) {
+      const m = new RegExp('(?:^|;|\\{)\\s*' + property + '\\s*:([^;}]*)').exec(rule.cssText);
+      return m ? m[1].trim() : '';
+    }
+
+    function rulesFor(el, pseudo, property) {
+      const found = [];
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const rule of flatten(rules)) {
+          if (!rule.selectorText || !rule.style) continue;
+          if (pseudo && !rule.selectorText.includes(pseudo)) continue;
+          const value = property ? declaredValue(rule, property) : null;
+          if (property && !value) continue;
+          for (const sel of splitSelectors(rule.selectorText)) {
+            try {
+              if (el.matches(stripPseudo(sel, pseudo))) {
+                found.push({ selector: sel.slice(0, 80), value });
+              }
+            } catch (e) { /* selector the engine will not match against */ }
+          }
+        }
+      }
+      return found;
+    }
+
+    // Rules inside @media need unwrapping, which is where the motion block
+    // lives. Truthiness is not enough to spot a grouping rule: a CSSStyleRule
+    // now carries its own (empty) cssRules list so that CSS nesting works, so
+    // `if (rule.cssRules)` recurses into every ordinary rule and returns an
+    // empty list — which reported zero rules for the whole stylesheet.
+    function flatten(rules) {
+      const out = [];
+      for (const rule of rules) {
+        out.push(rule);
+        if (rule.cssRules && rule.cssRules.length) out.push(...flatten(rule.cssRules));
+      }
+      return out;
+    }
+
+    const token = (name) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    // What a focus ring would paint on this element, if anything.
+    window.__focusRing = function (id) {
+      const hits = rulesFor(document.getElementById(id), ':focus-visible', 'outline');
+      return { count: hits.length, outlines: hits.map(h => h.value) };
+    };
+
+    // Whether the motion block reaches this element.
+    window.__transitions = function (id) {
+      return rulesFor(document.getElementById(id), '', 'transition')
+        .filter(h => /0\.15s/.test(h.value)).length;
+    };
+
+    // Reads a declaration straight out of the stylesheet, for the things that
+    // have no element to measure — ::selection and the scrollbar thumb never
+    // appear in any computed style.
+    window.__declaration = function (selectorFragment, property) {
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const rule of flatten(rules)) {
+          if (!rule.selectorText || !rule.style) continue;
+          if (!rule.selectorText.includes(selectorFragment)) continue;
+          const v = declaredValue(rule, property);
+          if (v) return v;
+        }
+      }
+      return null;
+    };
+
+    // Resolves a value that may be a var() reference back to a real colour.
+    window.__resolve = function (value) {
+      const m = /var\((--[\w-]+)\)/.exec(value || '');
+      return m ? token(m[1]) : value;
+    };
+
+    window.__surfaceTokens = () => [
+      '--bg-primary', '--bg-sidebar', '--bg-secondary',
+      '--bg-row-alt', '--bg-tertiary', '--bg-raised', '--bg-hover',
+    ].map(token);
+
+    // Forces a style recalculation before reading. A hidden tab lets Chrome
+    // skip that work, and native form controls in particular then keep
+    // reporting the user-agent background — a themed button read back as
+    // rgb(239,239,239) with the rule sitting right there in the sheet. Both
+    // fixture-stream and fixture-perf already account for a hidden tab in
+    // their own way; this is the same hazard in a different disguise.
+    window.__probe = function (id) {
+      const el = __restyleTree(document.getElementById(id));
+      const cs = getComputedStyle(el);
+      return { borderColor: cs.borderTopColor, borderWidth: cs.borderTopWidth,
+               background: cs.backgroundColor, color: cs.color };
+    };
+
+    // The standard scrollbar properties live on the gate element itself, so
+    // there is no pseudo-element selector to search for.
+    window.__scrollbarStandard = () => ({
+      color: __declaration('html[data-bb-dark] {', 'scrollbar-color')
+          || __declaration('[data-bb-dark]', 'scrollbar-color'),
+      width: __declaration('[data-bb-dark]', 'scrollbar-width'),
+    });
+  </script>
+</body>
+</html>

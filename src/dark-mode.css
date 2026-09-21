@@ -137,6 +137,12 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   --accent-primary:   #6d1a36;   /* primary CTA, active states */
   --accent-hover:     #8a2044;   /* lighter maroon for hover */
   --accent-deep:      #3d0f1e;   /* Iona's own maroon, darkened for a dark page */
+  /* Rim for the primary CTA. The maroon fill measures 1.74:1 against the page,
+     so a filled button with no border has almost no shape of its own — short
+     of the 3:1 WCAG 1.4.11 wants for a control boundary. This is 3.57:1 on the
+     canvas and only 2.05:1 against the fill, so it reads as a lighter edge on
+     the same button rather than a second colour. */
+  --accent-edge:      #c02e5e;
   --text-on-accent:   #ffffff;   /* text sitting on an accent fill */
   --accent-glow:      rgba(109, 26, 54, 0.25); /* subtle maroon glow */
 
@@ -586,7 +592,7 @@ html[data-bb-dark] [class*="Button--primary"],
 html[data-bb-dark] .bb-button-primary {
   background-color: var(--accent-primary) !important;
   color: var(--text-on-accent) !important;
-  border-color: transparent !important;
+  border: 1px solid var(--accent-edge) !important;
 }
 
 html[data-bb-dark] button[class*="primary"]:hover,
@@ -663,7 +669,7 @@ html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button
 html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"] {
   background-color: var(--accent-primary) !important;
   color: var(--text-on-accent) !important;
-  border-color: transparent !important;
+  border-color: var(--accent-edge) !important;
 }
 
 html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"]:hover {
@@ -743,11 +749,22 @@ html[data-bb-dark] ::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
 html[data-bb-dark] ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  /* --border-strong measured 2.13:1 against the track, which is not a control
+     you can see. --border-interactive is the token for exactly this job and
+     lands at 5.48:1; the --text-muted hover above it keeps the progression. */
+  background: var(--border-interactive);
   border-radius: 4px;
 }
 html[data-bb-dark] ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* The ::-webkit- rules above reach Chromium and nothing else. This is the
+   standard property, and it is what Firefox and any future non-Chromium
+   host will actually read. */
+html[data-bb-dark] {
+  scrollbar-color: var(--border-interactive) var(--bg-primary);
+  scrollbar-width: thin;
 }
 
 /* ─── 12. STATUS BADGES ──────────────────────────────────────────────────── */
@@ -1975,4 +1992,103 @@ html[data-bb-dark] [class*="empty-element"] {
 html[data-bb-dark] [class*="messages-container"],
 html[data-bb-dark] [class*="messages-header"] {
   border-color: var(--border-subtle) !important;
+}
+
+/* ─── 32. FOCUS VISIBILITY ───────────────────────────────────────────────
+   Until now the only focusable thing on the page that showed where the
+   keyboard was, was a text input. Buttons, links, tabs, menu items and
+   options had nothing at all, and inside the activity stream §22 actively
+   removed the browser's own ring by forcing `outline-color: transparent`
+   onto every descendant. Tabbing through a course was invisible.
+
+   Three constraints shaped this rule:
+
+   It must be an `outline`, not a `box-shadow`. That same §22 rule forces
+   `box-shadow: none !important`, so a shadow-based ring would be erased
+   exactly where it is most needed.
+
+   It is (0,2,2) — `html` and `body` as elements, `[data-bb-dark]` and
+   `:focus-visible` as the other half — which clears the (0,2,1) of the §22
+   killer. Leading with `body` is what buys that, and is the whole reason it
+   is written this way rather than as a bare `*:focus-visible`.
+
+   `:focus-visible` rather than `:focus`, so a mouse click does not leave a
+   ring behind on every button you press. Text inputs keep plain `:focus` in
+   §7, because a field should show focus however you arrived in it.
+
+   --border-focus is the theme's pink, not the maroon: it measures 5.47:1 at
+   worst across all seven surfaces and against the maroon CTA fill, where
+   --accent-primary manages 1.74:1 on the canvas.                          */
+html[data-bb-dark] body *:focus-visible {
+  outline: 2px solid var(--border-focus) !important;
+  outline-offset: 2px !important;
+}
+
+/* ─── 33. TEXT SELECTION ─────────────────────────────────────────────────
+   Unstyled, this fell through to whatever the browser picked for a dark
+   colour-scheme, which is a blue that belongs to no part of this palette.
+   The accent hover maroon carries white text at 8.86:1 and separates from
+   the canvas by hue as well as lightness, so a selection reads as one even
+   where the lightness step alone would be weak. */
+html[data-bb-dark] ::selection {
+  background-color: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+/* ─── 34. MOTION ─────────────────────────────────────────────────────────
+   Every hover in this theme landed instantly, which is most of what made it
+   feel applied from outside rather than built in.
+
+   The duration and easing are not invented: they are what Blackboard already
+   runs on its own navigation items, read off the live page. Matching them
+   means the states this stylesheet adds move the same way as the ones
+   Blackboard ships.
+
+   Deliberately a named list and never `*`. Blackboard is a React and Angular
+   app that re-renders constantly, and a transition on every element turns
+   each reconciliation into a wave of fades. `.darkboard-pill` is excluded for
+   the same reason at closer range — the content script stamps those after a
+   re-render, and a pill fading up from the page colour looks like a bug
+   rather than a grade.
+
+   `no-preference` rather than a `reduce` override: a user who has asked for
+   less motion gets none, instead of getting it and then having it taken back
+   by a later rule that some other stylesheet might outrank. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-bb-dark] body :is(
+    a, button, summary,
+    [role="button"], [role="tab"], [role="option"], [role="menuitem"],
+    tr, [role="row"],
+    [class*="-row"], [class*="_row"], [class*="Row"],
+    [class*="listItem"], [class*="list-item"], [class*="ListItem"]
+  ):not(.darkboard-pill) {
+    transition:
+      background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color     0.15s cubic-bezier(0.4, 0, 0.2, 1),
+      color            0.15s cubic-bezier(0.4, 0, 0.2, 1),
+      outline-color    0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Windows High Contrast Mode replaces the whole palette with the user's own,
+   and the right response is to get out of the way rather than fight it. The
+   image dimming in §3b is the one thing that actively interferes — it is a
+   filter, which forced-colors does not override — so it is switched off, and
+   the focus ring defers to the system highlight. */
+@media (forced-colors: active) {
+  html[data-bb-dark] img,
+  html[data-bb-dark] [class*="course-banner"],
+  html[data-bb-dark] [class*="CourseBanner"],
+  html[data-bb-dark] [class*="card-image"],
+  html[data-bb-dark] [class*="CardImage"],
+  html[data-bb-dark] [class*="card-hero"],
+  html[data-bb-dark] [class*="CardHero"],
+  html[data-bb-dark] [class*="course-color-"]::before,
+  html[data-bb-dark] [class*="course-color-"]::after {
+    filter: none !important;
+  }
+
+  html[data-bb-dark] body *:focus-visible {
+    outline-color: Highlight !important;
+  }
 }

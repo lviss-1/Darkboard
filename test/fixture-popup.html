@@ -20,14 +20,29 @@
     // srcdoc allows a stub to be injected ahead of it. srcdoc resolves relative
     // URLs against this document, so <base> is what keeps the icon, fonts and
     // script pointing at the repo root.
+    // ?offscope makes the stubbed tabs.query come back empty, which is how the
+    // popup decides the active tab is not one the extension themes. Without it
+    // the out-of-scope branch is never exercised.
+    const OFF_SCOPE = new URLSearchParams(location.search).has('offscope');
+
+    // The stub has to answer everything popup.js touches at load. It now reads
+    // content_scripts[0].matches to learn the host patterns and calls
+    // chrome.tabs.query with them; either one missing throws at the top level
+    // and takes the whole popup script with it, which would leave every
+    // assertion below testing a blank page rather than a popup.
     const STUB = `<base href="../">
       <script>
         window.chrome = {
           runtime: {
-            getManifest: () => ({ version: '0.0.0' }),
+            getManifest: () => ({
+              version: '0.0.0',
+              content_scripts: [{ matches: ['https://online.iona.edu/*'] }],
+            }),
             sendMessage: () => Promise.resolve(),
+            lastError: undefined,
           },
           storage: { local: { get: (k, cb) => cb({}), set() {} } },
+          tabs: { query: (q, cb) => cb(${OFF_SCOPE ? '[]' : '[{ id: 1 }]'}) },
         };
       <\/script>`;
 
@@ -80,6 +95,18 @@
         appNameFill: win.getComputedStyle(doc.querySelector('.app-name')).webkitTextFillColor,
         pills,
         hasEmoji: /\p{Extended_Pictographic}/u.test(doc.body.textContent),
+
+        // The out-of-scope note, and proof the popup script survived load at
+        // all: if chrome.tabs or content_scripts were missing from the stub,
+        // popup.js would have thrown before ever setting the version tag.
+        scopeNoteHidden: doc.getElementById('scopeNote').hidden,
+        scopeNoteColor: colorOf('.scope-note'),
+        versionTagFilled: doc.getElementById('versionTag').textContent !== '',
+        toggleEnabled: !doc.getElementById('darkToggle').disabled,
+        titleLabelsToggle:
+          doc.querySelector('.toggle-title').getAttribute('for') === 'darkToggle',
+        statusIsLive:
+          doc.getElementById('statusText').getAttribute('aria-live') === 'polite',
       };
     };
   </script>

@@ -127,13 +127,14 @@
       justify-content: space-between;
     }
 
-    .toggle-label-group {}
     .toggle-title {
       font-family: 'Syne', sans-serif;
       font-weight: 700;
       font-size: 13px;
       letter-spacing: 0.02em;
       color: var(--c-text);
+      display: block;
+      cursor: pointer;
     }
 
     .toggle-subtitle {
@@ -240,6 +241,32 @@
       letter-spacing: 0.04em;
     }
 
+    /* ── Scope note ─────────────────────────────────────────────
+       Shown only when the active tab is not one this extension themes.
+       11px is the floor the popup fixture asserts for anything carrying
+       text, and --c-muted is 5.45:1 on --c-bg. */
+    .scope-note {
+      margin: 12px 16px 0;
+      padding: 9px 11px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-left: 2px solid var(--c-accent-light);
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--c-muted);
+      letter-spacing: 0.03em;
+    }
+
+    .scope-note strong {
+      display: block;
+      color: var(--c-text);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .scope-note[hidden] { display: none; }
+
     /* ── Footer ─────────────────────────────────────────────── */
     .footer {
       padding: 14px 20px 18px;
@@ -255,6 +282,16 @@
     .footer-text a {
       color: var(--c-accent-light);
       text-decoration: none;
+    }
+
+    /* The switch knob slide and the status dot glow are decorative. */
+    @media (prefers-reduced-motion: reduce) {
+      .track,
+      .track::after,
+      .status-dot,
+      .status-text {
+        transition: none;
+      }
     }
   </style>
 </head>
@@ -272,8 +309,8 @@
 
   <div class="card" id="mainCard">
     <div class="toggle-row">
-      <div class="toggle-label-group">
-        <div class="toggle-title">DARK MODE</div>
+      <div>
+        <label class="toggle-title" for="darkToggle">DARK MODE</label>
         <div class="toggle-subtitle">All Blackboard Ultra pages</div>
       </div>
       <label class="switch">
@@ -283,9 +320,14 @@
     </div>
     <div class="status-row">
       <div class="status-dot"></div>
-      <span class="status-text" id="statusText">INACTIVE</span>
+      <span class="status-text" id="statusText" aria-live="polite">INACTIVE</span>
     </div>
   </div>
+
+  <p class="scope-note" id="scopeNote" hidden>
+    <strong>This tab isn't Blackboard.</strong>
+    The switch still applies to your Blackboard tabs.
+  </p>
 
   <div class="scope-info">
     <div class="scope-pill">online.iona.edu</div>

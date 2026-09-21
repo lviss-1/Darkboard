@@ -232,6 +232,9 @@ token, so the two cannot drift apart.
 | The toggle | enabled either way |
 | `.toggle-title` | labels `darkToggle`, so the text is a hit target |
 | Status text | carries `aria-live="polite"` |
+| Rating prompt | shown, pointing at `/detail/<runtime.id>/reviews` |
+| Rating prompt under `?noid` | hidden — an unpacked build has no id and must not link to `/detail/undefined/reviews` |
+| Rating prompt colour | at least 4.5:1 |
 
 The title check matters beyond looks. A gradient clipped to text needs a
 transparent fill, so if the gradient ever fails to paint the title disappears
@@ -246,7 +249,10 @@ tag check is for — it is the cheapest possible canary for "the script ran".
 
 `?offscope` makes the stubbed `tabs.query` return an empty list, which is how
 the popup concludes the tab is out of scope. Without it that branch is never
-exercised.
+exercised. `?noid` drops `chrome.runtime.id` from the stub, which is what an
+unpacked build looks like — the rating prompt reads that id to build its link
+and has to stay hidden rather than send anyone to a listing that is not this
+one.
 
 ## fixture-surfaces.html
 

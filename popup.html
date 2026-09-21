@@ -267,6 +267,38 @@
 
     .scope-note[hidden] { display: none; }
 
+    /* ── Rating prompt ──────────────────────────────────────────
+       A quiet line, not a nag: no modal, no dismissal state to persist,
+       and it sits below the fold of the toggle so it never competes with
+       the thing the popup is actually for. Ratings weight Web Store
+       ranking and are the first thing a stranger reads on the listing. */
+    .rate-link {
+      display: block;
+      margin: 14px 16px 0;
+      padding: 9px 11px;
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      background: var(--c-surface);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-align: center;
+      text-decoration: none;
+      color: var(--c-accent-light);
+      transition: border-color var(--transition), color var(--transition);
+    }
+
+    .rate-link:hover {
+      border-color: var(--c-accent-2);
+      color: var(--c-text);
+    }
+
+    .rate-link:focus-visible {
+      outline: 2px solid var(--c-accent-light);
+      outline-offset: 2px;
+    }
+
+    .rate-link[hidden] { display: none; }
+
     /* ── Footer ─────────────────────────────────────────────── */
     .footer {
       padding: 14px 20px 18px;
@@ -289,7 +321,8 @@
       .track,
       .track::after,
       .status-dot,
-      .status-text {
+      .status-text,
+      .rate-link {
         transition: none;
       }
     }
@@ -333,6 +366,10 @@
     <div class="scope-pill">online.iona.edu</div>
     <div class="scope-pill">Embedded frames</div>
   </div>
+
+  <a class="rate-link" id="rateLink" target="_blank" rel="noopener noreferrer" hidden>
+    FIND IT USEFUL? LEAVE A RATING
+  </a>
 
   <div class="footer">
     <p class="footer-text">PORTFOLIO PROJECT · <a href="https://github.com/lviss-1/Darkboard" target="_blank" rel="noopener noreferrer">SOURCE CODE</a></p>

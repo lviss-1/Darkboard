@@ -24,6 +24,7 @@
     // popup decides the active tab is not one the extension themes. Without it
     // the out-of-scope branch is never exercised.
     const OFF_SCOPE = new URLSearchParams(location.search).has('offscope');
+    const NO_ID = new URLSearchParams(location.search).has('noid');
 
     // The stub has to answer everything popup.js touches at load. It now reads
     // content_scripts[0].matches to learn the host patterns and calls
@@ -40,6 +41,10 @@
             }),
             sendMessage: () => Promise.resolve(),
             lastError: undefined,
+            // popup.js reads this to build the review link. ?noid drops it,
+            // which is what an unpacked build looks like, and the prompt has
+            // to stay hidden rather than link to /detail/undefined/reviews.
+            id: ${NO_ID ? 'undefined' : "'ogkjalalkednannikfgjhcnmgcepkeip'"},
           },
           storage: { local: { get: (k, cb) => cb({}), set() {} } },
           tabs: { query: (q, cb) => cb(${OFF_SCOPE ? '[]' : '[{ id: 1 }]'}) },
@@ -107,6 +112,12 @@
           doc.querySelector('.toggle-title').getAttribute('for') === 'darkToggle',
         statusIsLive:
           doc.getElementById('statusText').getAttribute('aria-live') === 'polite',
+
+        // The rating prompt. It must point at this extension's own listing,
+        // and must stay hidden when there is no id to point with.
+        rateHidden: doc.getElementById('rateLink').hidden,
+        rateHref: doc.getElementById('rateLink').getAttribute('href'),
+        rateColor: colorOf('.rate-link'),
       };
     };
   </script>

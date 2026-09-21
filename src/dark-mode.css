@@ -11,7 +11,7 @@
  *
  * COLOR IDENTITY: Iona University
  *   Black  #0a0a0c  — deep page canvas
- *   Maroon #6d1a36  — Iona brand accent
+ *   Maroon #6f2c3e  — Iona brand accent
  *   White  #f0eee8  — warm off-white for text (easier on eyes than pure #fff)
  */
 
@@ -134,9 +134,14 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   --border-focus:     #e8a0b4;
 
   /* Iona Maroon accent system */
-  --accent-primary:   #6d1a36;   /* primary CTA, active states */
-  --accent-hover:     #8a2044;   /* lighter maroon for hover */
-  --accent-deep:      #3d0f1e;   /* Iona's own maroon, darkened for a dark page */
+  /* Iona's actual brand maroon. The theme ran on #6d1a36 until now, which
+     measures 1.14:1 against this — the same colour to the eye, but only one
+     of them is the university's. The ramp below is derived from it rather
+     than carried over: #8a2044 was a lighter sibling of the old base and sits
+     only 1.13:1 from this one, which is too close to read as a hover. */
+  --accent-primary:   #6f2c3e;   /* primary CTA, active states */
+  --accent-hover:     #8c3a50;   /* hover — 1.35:1 off the base, white at 7.4:1 */
+  --accent-deep:      #421a26;   /* darkened for the institution brand header */
   /* Rim for the primary CTA. The maroon fill measures 1.74:1 against the page,
      so a filled button with no border has almost no shape of its own — short
      of the 3:1 WCAG 1.4.11 wants for a control boundary. This is 3.57:1 on the
@@ -144,7 +149,7 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
      the same button rather than a second colour. */
   --accent-edge:      #c02e5e;
   --text-on-accent:   #ffffff;   /* text sitting on an accent fill */
-  --accent-glow:      rgba(109, 26, 54, 0.25); /* subtle maroon glow */
+  --accent-glow:      rgba(111, 44, 62, 0.25); /* subtle maroon glow */
 
   /* Grade colors — kept semantic, slightly warmer to match palette */
   --accent-success:   #4ade80;   /* green      — A grade  */
@@ -153,7 +158,7 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   --accent-danger:    #f87171;   /* red        — D/F grade */
 
   --shadow-card:      0 2px 16px rgba(0, 0, 0, 0.6);
-  --shadow-maroon:    0 2px 16px rgba(109, 26, 54, 0.3);
+  --shadow-maroon:    0 2px 16px rgba(111, 44, 62, 0.3);
 }
 
 /* ─── 2. GATE — rules only apply when [data-bb-dark] is on <html> ────────── */
@@ -1749,11 +1754,16 @@ html[data-bb-dark] body {
   color: var(--text-main) !important;
 }
 
-   /*The maroon (#6d1a36 / rgb(109,26,54)) header on the institution page
-   is intentional branding — we keep it but darken it to sit better on
-   a dark page.                                                            */
+   /* The maroon header on the institution page is intentional branding — we
+   keep it but darken it to sit better on a dark page.
+
+   These selectors sniff what BLACKBOARD inlines, not what this theme sets, so
+   retiring #6d1a36 from our palette does not retire it here. Both spellings
+   stay listed: Iona's own pages may emit either. */
 html[data-bb-dark] [style*="background-color: rgb(109, 26, 54)"],
 html[data-bb-dark] [style*="background-color: #6d1a36"],
+html[data-bb-dark] [style*="background-color: rgb(111, 44, 62)"],
+html[data-bb-dark] [style*="background-color: #6f2c3e"],
 html[data-bb-dark] [class*="brand-header"],
 html[data-bb-dark] [class*="BrandHeader"] {
   background-color: var(--accent-deep) !important;
@@ -1877,7 +1887,6 @@ html[data-bb-dark] body [aria-disabled="true"],
 html[data-bb-dark] body [class*="disabled"],
 html[data-bb-dark] body [class*="Disabled"] {
   color: var(--text-disabled) !important;
-  cursor: not-allowed !important;
 }
 
 /* The inert fill is scoped to real controls. Applied to the broad list above
@@ -1892,6 +1901,15 @@ html[data-bb-dark] body [role="button"][aria-disabled="true"] {
   background-color: var(--bg-tertiary) !important;
   border-color: var(--border-subtle) !important;
   box-shadow: none !important;
+  /* The cursor belongs here, with the fill, and not on the broad selector
+     above. `cursor` is an inherited property, so a substring match on
+     "disabled" put not-allowed over the whole subtree of any container
+     whose class merely contained the word — and Blackboard does use it for
+     layout, not just controls: the activity stream ships
+     `div.snackbar-provider.focus-handling-disabled` today. It is zero-height
+     there, but the pattern would claim a region the moment one of those
+     wrappers had size, and it overrides whatever cursor the user has set. */
+  cursor: not-allowed !important;
 }
 
 /* ─── 30. NAVIGATION IS NOT A ROW OF PRIMARY BUTTONS ─────────────────────
@@ -2091,4 +2109,54 @@ html[data-bb-dark] ::selection {
   html[data-bb-dark] body *:focus-visible {
     outline-color: Highlight !important;
   }
+}
+
+/* ─── 35. PEEK-PANEL HEADER ──────────────────────────────────────────────
+   Blackboard's slide-in panel — announcements, discussion threads, item
+   details — puts its title in `h1.panel-title` inside a wrapper it names
+   `black-header-contents`. The name is the intent: black text, on a header
+   bar that is light in Blackboard's own theme. On this canvas the bar went
+   dark and the title stayed rgb(38, 38, 38), so an announcement opened as a
+   30px heading you could not read.
+
+   **This is the first confirmed case of Blackboard outranking the entire
+   stylesheet.** Section 4 already sets `h1 { color: var(--text-heading) }`
+   and loses. Escalating against the live page:
+
+       html[data-bb-dark] h1                              (0,1,2)  loses
+       html[data-bb-dark] body h1                         (0,1,3)  loses
+       html[data-bb-dark] h1.panel-title                  (0,2,2)  loses
+       html[data-bb-dark] body h1.panel-title             (0,2,3)  loses
+       html[data-bb-dark] body [class*="black-header"] h1 (0,3,3)  loses
+       ...the same with one :not(#id)                     (1,2,3)  WINS
+
+   Blackboard has an ID-scoped colour rule here; there is an `id="site-wrap"`
+   ancestor and their sheets are cross-origin, so the rule cannot be read
+   directly. Nothing else in this file exceeds (0,3,x), which means any
+   ID-scoped rule of theirs beats all of it.
+
+   `:not(#_darkboard)` is how the selectors below reach ID-level specificity.
+   It matches everything — no element is ever given that id — and exists
+   purely to add (1,0,0). **It is not a typo and deleting it silently
+   reintroduces the bug.** Hard-coding `#site-wrap` would work today and fail
+   quietly the day Blackboard renames it.                                  */
+
+html[data-bb-dark] body header[class*="panel-header"]:not(#_darkboard),
+html[data-bb-dark] body [class*="panel-titles-container"]:not(#_darkboard),
+html[data-bb-dark] body [class*="black-header-contents"]:not(#_darkboard) {
+  background-color: var(--accent-primary) !important;
+  border-bottom: 1px solid var(--accent-edge) !important;
+}
+
+html[data-bb-dark] body [class*="panel-header"] :is(h1, h2, h3, .panel-title):not(#_darkboard),
+html[data-bb-dark] body [class*="black-header-contents"] :is(h1, h2, h3):not(#_darkboard),
+html[data-bb-dark] body [class*="panel-title"]:not(#_darkboard) {
+  color: var(--text-on-accent) !important;
+}
+
+/* The eyebrow above the title ("Course Announcements") and any subtitle sit
+   on the same bar and must come with it. */
+html[data-bb-dark] body [class*="panel-header"] :is(p, span, bdi):not(#_darkboard),
+html[data-bb-dark] body [class*="panel-titles-container"] :is(p, span, bdi):not(#_darkboard) {
+  color: var(--text-on-accent) !important;
 }

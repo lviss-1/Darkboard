@@ -471,6 +471,58 @@ The pill exclusion is deliberate rather than incidental. The content script
 stamps those after a re-render, and a pill fading up from the page colour
 reads as a bug rather than a grade.
 
+## fixture-panel.html
+
+Covers section 35, and the reason it needs to exist.
+
+Blackboard's slide-in panel — announcements, discussion threads, item details
+— puts its title in `h1.panel-title` inside a wrapper it names
+`black-header-contents`. The name is the intent: black text on a header bar
+that is light in Blackboard's own theme. On this canvas the bar went dark and
+the title stayed `rgb(38, 38, 38)`, so an announcement opened as a 30px
+heading nobody could read.
+
+**This is the first confirmed case of Blackboard outranking the entire
+stylesheet.** Section 4 already sets `h1 { color: var(--text-heading) }` and
+loses. Escalated against the live page:
+
+| Selector | Specificity | Result |
+|---|---|---|
+| `html[data-bb-dark] h1` | (0,1,2) | loses |
+| `html[data-bb-dark] body h1` | (0,1,3) | loses |
+| `html[data-bb-dark] h1.panel-title` | (0,2,2) | loses |
+| `html[data-bb-dark] body h1.panel-title` | (0,2,3) | loses |
+| `html[data-bb-dark] body [class*="black-header"] h1` | (0,3,3) | loses |
+| the same plus one `:not(#id)` | (1,2,3) | **wins** |
+
+Blackboard has an ID-scoped colour rule here; there is an `id="site-wrap"`
+ancestor and their sheets are cross-origin, so it cannot be read directly.
+**Nothing else in `dark-mode.css` exceeds (0,3,x)**, which means any
+ID-scoped rule of theirs beats all of it. `:not(#_darkboard)` is how section
+35 reaches ID level — it matches everything and exists only to add (1,0,0).
+It is not a typo, and deleting it silently reintroduces the bug.
+
+The fixture loads a simulated Blackboard rule **after** the theme, so source
+order cannot be what saves us — only specificity can.
+
+| Check | Expected | Measured |
+|---|---|---|
+| Header bar | the brand maroon | `rgb(111, 44, 62)` |
+| Title on the bar | at least 4.5:1 | 9.97:1 |
+| Eyebrow on the bar | at least 4.5:1 | 9.97:1 |
+| Panel body copy | untouched | `--text-main` |
+
+Run it with `?css=` against the previous stylesheet and the title measures
+**1.22:1** — a black heading on the dark bar, which is the bug as reported.
+
+A first draft of this fixture also gave Blackboard the header *background*.
+That was wrong, and worth recording: the live panel computes its bar as
+`rgb(19, 19, 25)`, our own `--bg-sidebar`, so the theme already wins there
+and only loses the text. With the invented rule in place the pre-fix
+stylesheet rendered black-on-white and scored 15:1 — the fixture passed on a
+fight that does not happen. **Reproduce the real cascade, not a harder
+invented one**, or the fixture certifies the bug.
+
 ## restyle.js
 
 Forces a genuine style resolution on an element before it is measured, which

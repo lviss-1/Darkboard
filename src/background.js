@@ -20,7 +20,7 @@ function restoreBadge() {
   chrome.storage.local.get('darkModeEnabled', (result) => {
     const enabled = result.darkModeEnabled !== false;
     chrome.action.setBadgeText({ text: enabled ? 'ON' : '' });
-    chrome.action.setBadgeBackgroundColor({ color: enabled ? '#6d1a36' : '#666' });
+    chrome.action.setBadgeBackgroundColor({ color: enabled ? '#6f2c3e' : '#666' });
   });
 }
 
@@ -41,7 +41,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   });
 
   chrome.action.setBadgeText({ text: enabled ? 'ON' : '' });
-  chrome.action.setBadgeBackgroundColor({ color: enabled ? '#6d1a36' : '#666' });
+  chrome.action.setBadgeBackgroundColor({ color: enabled ? '#6f2c3e' : '#666' });
 
   sendResponse({ ok: true });
 });

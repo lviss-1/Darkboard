@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — peek-panel header</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const alt = new URLSearchParams(location.search).get('css');
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = (alt || '../src/dark-mode.css') + '?cb=' + Date.now();
+      link.onload = () => setTimeout(resolve, 60);
+      link.onerror = () => setTimeout(resolve, 60);
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <!-- Blackboard's own rule, reproduced from what the live page computes.
+       The ID is the whole point: `#site-wrap` is a real ancestor on Ultra,
+       and this is the first confirmed case of Blackboard outranking every
+       rule in dark-mode.css, none of which exceeds (0,3,x). Loaded AFTER the
+       theme, exactly as it is in the browser, so source order cannot be what
+       saves us — only specificity can. -->
+  <style id="blackboard-id-rule">
+    /* Only the TITLE COLOUR is ID-scoped. Measured on the live panel, the
+       header bar computed rgb(19, 19, 25) — our own --bg-sidebar — so the
+       theme already wins the background and only loses the text. An earlier
+       draft of this fixture also gave Blackboard the bar, which made the
+       pre-fix stylesheet render black-on-white and "pass" at 15:1. The
+       fixture has to reproduce the real fight, not a harder invented one. */
+    #site-wrap .panel-title,
+    #site-wrap .black-header-contents h1 { color: rgb(38, 38, 38) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- The structure read off the live announcement-detail panel. -->
+  <div id="site-wrap">
+    <div class="announcement-detail-panel react-container">
+      <div class="panel-wrap">
+        <header class="panel-header simple-header" id="hdr">
+          <div class="panel-titles-container" id="titles">
+            <p class="panel-eyebrow" id="eyebrow">Course Announcements</p>
+            <div class="editable-title-container black-header-contents" id="blackhdr">
+              <h1 class="panel-title" id="title">Reminder: Please choose your group by the end of day today</h1>
+            </div>
+          </div>
+        </header>
+        <div class="panel-body">
+          <p id="body-copy">Thank you to those who have already signed up for the group.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = (n) =>
+      getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+    window.__probe = function (id) {
+      const el = __restyleTree(document.getElementById(id));
+      const cs = getComputedStyle(el);
+      return { color: cs.color, background: cs.backgroundColor };
+    };
+
+    // The header bar and the text drawn on it, which is the pair that has to
+    // clear AA — a maroon bar with Blackboard's black title left on it
+    // measures 1.52:1, worse than the dark bar it replaced.
+    window.__headerContrast = function () {
+      const bar = __probe('hdr');
+      return {
+        bar: bar.background,
+        title: __probe('title').color,
+        titleRatio: __contrast(__probe('title').color, bar.background),
+        eyebrowRatio: __contrast(__probe('eyebrow').color, bar.background),
+      };
+    };
+
+    window.__tokens = () => ({
+      accent: token('--accent-primary'),
+      accentHover: token('--accent-hover'),
+      onAccent: token('--text-on-accent'),
+    });
+  </script>
+</body>
+</html>

@@ -314,6 +314,15 @@ html[data-bb-dark] [class*="card"]:hover img,
 html[data-bb-dark] [class*="Card"]:hover img,
 html[data-bb-dark] [class*="card"]:focus-within img,
 html[data-bb-dark] [class*="Card"]:focus-within img,
+/* The real course banners are not <img> at all — Blackboard paints them as a
+   background-image on `div.course-banner` inside `article.element-card`, which
+   is why the restore has to reach them through the card as well as directly.
+   Confirmed on the live courses page: ten banners, one <img> on the whole
+   screen, and that one the nav logo. */
+html[data-bb-dark] [class*="card" i]:hover [class*="banner" i],
+html[data-bb-dark] [class*="card" i]:focus-within [class*="banner" i],
+html[data-bb-dark] article:hover [class*="banner" i],
+html[data-bb-dark] bb-base-course-card:hover [class*="banner" i],
 html[data-bb-dark] [class*="course-banner"]:hover,
 html[data-bb-dark] [class*="CourseBanner"]:hover,
 html[data-bb-dark] [class*="card-image"]:hover,
@@ -1865,5 +1874,62 @@ html[data-bb-dark] body button[aria-disabled="true"],
 html[data-bb-dark] body [role="button"][aria-disabled="true"] {
   background-color: var(--bg-tertiary) !important;
   border-color: var(--border-subtle) !important;
+  box-shadow: none !important;
+}
+
+/* ─── 30. NAVIGATION IS NOT A ROW OF PRIMARY BUTTONS ─────────────────────
+   Diagnosed on the live page, and the single loudest thing left in the
+   theme: every item in the left rail — the profile link, Institution Page,
+   Activity, Courses, Organizations, Calendar, Messages, Grades, Tools and
+   Sign Out — was filled with --accent-primary, so the whole navigation read
+   as though all of it was selected at once.
+
+   Nothing in Blackboard's markup asked for that. Each nav item is an <a>
+   whose class list happens to contain two substrings this stylesheet keys
+   on. "Button" arrives from MUI's own MuiButtonBase-root, and "primary"
+   from `themed-background-primary-alt-fill-only`, which is Blackboard's
+   institution-theme utility and says nothing about button variants. Between
+   them they satisfied the "anchor styled as a primary button" rule in
+   section 8, which then painted all nine.
+
+   Excluding the theme utility by name would fix this one spelling and break
+   again on the next. Scoping by ancestor is what actually expresses the
+   intent: an anchor inside <nav> is a navigation item, never a CTA.
+
+   Specificity: section 8's two anchor rules are (0,2,3) and (0,3,3). Adding
+   `nav` to the ancestor chain puts these at (0,2,4) and (0,3,4), which clears
+   both. The active rule below ties with the primary rule above it at (0,3,4)
+   and wins on source order, so their order here is load-bearing.            */
+
+html[data-bb-dark] body nav a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"]),
+html[data-bb-dark] body nav a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"] {
+  background-color: transparent !important;
+  border: none !important;
+  color: var(--text-main) !important;
+}
+
+/* The one item that really is current. Blackboard marks it with a plain
+   `active` class; aria-current is carried as a fallback for the pages that
+   use it instead. */
+html[data-bb-dark] body nav a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="active"],
+html[data-bb-dark] body nav a[aria-current="page"][href],
+html[data-bb-dark] body nav [aria-current="page"][class] {
+  background-color: var(--accent-primary) !important;
+  color: var(--text-on-accent) !important;
+  border-radius: 6px !important;
+}
+
+html[data-bb-dark] body nav a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"]):hover:not([class*="active"]) {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-heading) !important;
+}
+
+/* The docked nav drawer is not a floating surface. [class*="MuiPaper"] gave
+   it --bg-raised, the lightest tier in the ladder, so the rail sat two steps
+   above the page it is attached to. MuiDrawer-paper is the narrower name for
+   exactly this element. (0,2,2) clears the (0,2,1) of the MuiPaper rule. */
+html[data-bb-dark] body [class*="MuiDrawer-paper"] {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-subtle) !important;
   box-shadow: none !important;
 }

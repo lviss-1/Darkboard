@@ -35,7 +35,7 @@
         "https://online.iona.edu/*",
         "https://*.blackboardcdn.com/*"
       ],
-      "js": ["src/content.js"],
+      "js": ["src/accent.js", "src/content.js"],
       "css": ["src/dark-mode.css"],
       "run_at": "document_start",
       "all_frames": true

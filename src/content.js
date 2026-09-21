@@ -94,6 +94,39 @@ function whenDomReady(fn) {
   }
 }
 
+// ─── The institution accent ───────────────────────────────────────────────
+// The accent ramp used to be one hand-tuned maroon spelled out in the
+// stylesheet, which is correct for Iona and wrong for every other university,
+// whose own brand colour it would fight on every page. accent.js turns the
+// whole ramp into a function of a single base colour; this applies it.
+//
+// Runs in the same synchronous block as the gate below, and can, because the
+// source is a lookup with no I/O. When logo extraction replaces that lookup it
+// will need an image load and therefore a cached value to paint from on the
+// first frame — the localStorage mirror above is the pattern to reuse.
+//
+// Everything here is best-effort. The stylesheet's own :root values are the
+// fallback, so an unknown host, an unusable brand colour, or this file failing
+// to load at all leaves the theme exactly as it ships.
+function applyAccent() {
+  if (typeof DarkboardAccent === 'undefined') return;
+
+  const base = DarkboardAccent.baseFor(location.hostname);
+  if (!base) return;
+
+  const ramp = DarkboardAccent.derive(base);
+  if (!ramp) return;
+
+  const root = document.documentElement;
+  if (!root) return;
+
+  for (const [token, value] of Object.entries(ramp)) {
+    root.style.setProperty(token, value);
+  }
+}
+
+applyAccent();
+
 // ─── Step 1: Apply the gate synchronously, before anything paints ─────────
 // This is the whole of the zero-flash guarantee. Everything below it is
 // correction.

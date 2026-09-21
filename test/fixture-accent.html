@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — accent derivation</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+</head>
+<body>
+
+  <p>The ramp maths is swept in <code>test/accent.test.js</code>. This checks
+     the half that Node cannot see: that the derived values actually reach
+     <code>&lt;html&gt;</code>, that the stylesheet picks them up, and that
+     every failure path leaves the theme as it ships.</p>
+
+  <script>
+    // content.js resolves the accent from location.hostname. `location` is
+    // non-configurable, so rather than mocking it the fixture registers its
+    // own hostname in the curated map — which exercises the real path,
+    // baseFor → derive → setProperty, with nothing stubbed out. Leaving it
+    // unregistered is the unknown-host case, and needs no setup at all.
+    //
+    // Each scenario runs in its own iframe: content.js declares consts at top
+    // level and throws on a second evaluation in the same scope.
+    function scenario({ registerHost, omitAccentModule }) {
+      return new Promise((resolve) => {
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'width:260px;height:70px;border:1px solid #ccc';
+        document.body.appendChild(frame);
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+
+        win.chrome = {
+          storage: { local: { get: (_k, cb) => setTimeout(() => cb({ darkModeEnabled: true }), 0), set() {} } },
+          runtime: { onMessage: { addListener() {} } },
+        };
+
+        const cb = '?cb=' + Date.now() + Math.random();
+        const css = doc.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = '../src/dark-mode.css' + cb;
+        doc.head.appendChild(css);
+
+        const load = (src) => new Promise((done) => {
+          const s = doc.createElement('script');
+          s.src = src + cb;
+          s.onload = done; s.onerror = done;
+          doc.head.appendChild(s);
+        });
+
+        (async () => {
+          // Loaded in manifest order. Omitting accent.js is what a partial
+          // package or a load failure looks like from content.js's side.
+          if (!omitAccentModule) {
+            await load('../src/accent.js');
+            // Reached through the frame's own eval, not as win.DarkboardAccent:
+            // a top-level `const` in a classic script is a lexical binding and
+            // never becomes a property of window. content.js sees it because
+            // content scripts share one lexical scope — which is exactly how
+            // the manifest loads these two — but nothing outside that scope
+            // can, and the first version of this fixture silently registered
+            // onto undefined and tested the fallback path twice.
+            if (registerHost) {
+              win.eval('DarkboardAccent.INSTITUTIONS[location.hostname] = "#6f2c3e";');
+            }
+          }
+          await load('../src/content.js');
+          await new Promise((r) => setTimeout(r, 250));
+
+          const root = doc.documentElement;
+          const read = (t) => getComputedStyle(root).getPropertyValue(t).trim();
+          resolve({
+            gated: root.hasAttribute('data-bb-dark'),
+            inlineAccent: root.style.getPropertyValue('--accent-primary').trim(),
+            computed: {
+              accent: read('--accent-primary'),
+              hover: read('--accent-hover'),
+              edge: read('--accent-edge'),
+              ring: read('--border-focus'),
+              onAccent: read('--text-on-accent'),
+              glow: read('--accent-glow'),
+            },
+            // Proof the stylesheet consumes them rather than the variables
+            // merely existing: a primary button has to end up wearing it.
+            buttonFill: (() => {
+              const b = doc.createElement('button');
+              b.className = 'Button--primary';
+              doc.body.appendChild(b);
+              const v = getComputedStyle(b).backgroundColor;
+              b.remove();
+              return v;
+            })(),
+            cleanup: () => frame.remove(),
+          });
+        })();
+      });
+    }
+
+    window.__probe = async function () {
+      const failures = [];
+      const results = {};
+
+      // 1. A curated host derives and applies the ramp.
+      const iona = await scenario({ registerHost: true });
+      results.curatedHost = iona.computed;
+      results.curatedButtonFill = iona.buttonFill;
+      if (!iona.inlineAccent) failures.push('curated host: nothing set on <html>');
+      if (iona.buttonFill !== 'rgb(111, 44, 62)') {
+        failures.push('curated host: primary button is ' + iona.buttonFill + ', expected rgb(111, 44, 62)');
+      }
+      for (const [k, v] of Object.entries(iona.computed)) {
+        if (!v) failures.push('curated host: --' + k + ' is empty');
+      }
+      if (!iona.gated) failures.push('curated host: the gate did not go on');
+      iona.cleanup();
+
+      // 2. An unknown host must fall through to the stylesheet's own values,
+      //    not to nothing.
+      const other = await scenario({ registerHost: false });
+      results.unknownHost = other.computed;
+      if (other.inlineAccent) failures.push('unknown host: wrote an inline accent it should not have');
+      if (other.computed.accent !== '#6f2c3e') {
+        failures.push('unknown host: fell back to ' + other.computed.accent + ', expected the CSS default');
+      }
+      if (!other.gated) failures.push('unknown host: the gate did not go on');
+      other.cleanup();
+
+      // 3. accent.js missing entirely. content.js must not throw — it runs at
+      //    document_start and taking it down takes the whole theme with it.
+      const bare = await scenario({ omitAccentModule: true });
+      results.moduleMissing = { gated: bare.gated, accent: bare.computed.accent };
+      if (!bare.gated) failures.push('module missing: content.js died and the gate never went on');
+      if (bare.computed.accent !== '#6f2c3e') {
+        failures.push('module missing: accent is ' + bare.computed.accent + ', expected the CSS default');
+      }
+      bare.cleanup();
+
+      return { failures, results };
+    };
+  </script>
+</body>
+</html>

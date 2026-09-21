@@ -9,6 +9,16 @@ on `window` for driving and inspecting the result.
 
 ## Running
 
+Two kinds of test live here. Most are browser fixtures, driven from the
+DevTools console against a served copy of the repo. One — `accent.test.js` —
+is a plain Node script, because the code it covers is pure and can therefore be
+swept far harder than a fixture allows:
+
+```bash
+node test/accent.test.js
+```
+
+
 Relative paths need a real HTTP origin, so serve the repo root:
 
 ```bash
@@ -592,6 +602,69 @@ which it is rewritten and every load thereafter is clean.
 this origin, so without clearing it a previous `?off` run would decide the
 opening frame of the next default run and the fixture would report whatever it
 was last asked to do.
+
+## accent.test.js
+
+Not a fixture. `src/accent.js` derives the whole accent ramp from a single
+institution colour, and it is pure — no DOM, no `chrome.*` — so it can be run
+over a thousand colours in a second. That matters more here than anywhere else
+in this repo: the schools this has to work for are ones nobody can look at, so
+"it looks right at Iona" is not evidence of anything.
+
+The rule is that for every input the ramp either meets **every** constraint or
+is explicitly rejected. There is no silent middle where something almost
+readable ships.
+
+| Section | What it covers |
+|---|---|
+| Real institution colours | 14 actual university brand colours |
+| Hue / saturation / lightness sweep | 1,080 colours — 874 derive, 206 correctly rejected |
+| Rejections | `#262626`, black, white, mid grey, malformed input, `null` |
+| Iona must not move | derived ramp vs the shipped one, in OKLab ΔE |
+| Source resolution | the curated map, including prototype-chain leaks |
+| Surfaces agree with the CSS | the ring is only trustworthy if this list is the real ladder |
+
+### Three bugs this caught that a fixture would not have
+
+**A hover nobody can see.** For very light, high-chroma fills the accent sits
+at the lightness ceiling, so "lighten for hover" clamped and produced a hover
+*identical to the fill*. 65 colours in the sweep, all yellows and greens near
+white. Hover now tries the other direction when the preferred one has no room.
+
+**A distinctness check that could not see.** That bug was originally measured
+in contrast ratio, which compresses at both ends: it scored a clearly visible
+step between two pale yellows at 1.00 and an invisible one between two
+near-blacks at 1.10. Both the module and the test now measure in OKLab
+lightness, which is the whole reason the module is in OKLCH.
+
+**A drift check that could not see either.** The Iona comparison first used a
+contrast ratio too, and passed `#c02e5e → #9b5364` at "1.01" — two colours can
+share a luminance and look nothing alike. It uses ΔE in OKLab now, which
+immediately showed the rim drifting 0.087 and led to the chroma boost that
+brought it to 0.011.
+
+## fixture-accent.html
+
+The half Node cannot see: that the derived values actually reach `<html>`, that
+the stylesheet consumes them, and that every failure path leaves the theme as
+it ships.
+
+| Scenario | Expected |
+|---|---|
+| Curated host | derived ramp on `<html>`, primary button wears `rgb(111, 44, 62)` |
+| Unknown host | nothing written inline; CSS defaults stand |
+| `accent.js` absent entirely | `content.js` survives, gate still goes on, CSS defaults stand |
+
+`location` is non-configurable, so rather than mocking the hostname the fixture
+registers its own in the curated map — which exercises the real
+`baseFor → derive → setProperty` path with nothing stubbed.
+
+**A top-level `const` is a lexical binding, not a property of `window`.** The
+first version registered through `win.DarkboardAccent`, which is `undefined`,
+so it silently tested the fallback path twice and passed. It reaches the module
+through the frame's own `eval` now. `content.js` sees it because content
+scripts share one lexical scope — which is exactly how the manifest loads the
+two files — but nothing outside that scope can.
 
 ## restyle.js
 

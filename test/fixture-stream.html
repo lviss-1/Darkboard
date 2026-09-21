@@ -83,6 +83,14 @@
       const initialEnabled = !new URLSearchParams(location.search).has('off');
       const listeners = [];
 
+      // content.js now seeds its gate synchronously from a localStorage
+      // mirror before the stubbed storage read resolves. That mirror survives
+      // between runs on this origin, so a previous `?off` load would decide
+      // the opening frame of the next default load and the fixture would
+      // report whatever it was last asked to do. Cleared so each run starts
+      // from the stub alone.
+      try { localStorage.removeItem('darkboard.enabled'); } catch (e) {}
+
       window.chrome = {
         storage: {
           local: {

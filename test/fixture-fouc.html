@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — zero flash of white</title>
+</head>
+<body>
+
+  <p>Drives <code>content.js</code> in an iframe with a deliberately slow
+     storage stub, and records whether the gate was already on <em>before</em>
+     that storage read resolved.</p>
+
+  <script>
+    // The claim under test: [data-bb-dark] is on <html> before first paint.
+    //
+    // It used to be set inside the callback of an async chrome.storage read,
+    // so the stylesheet — injected at document_start by the manifest — sat
+    // there fully loaded with nothing to switch it on. The race was nearly
+    // always won, which is exactly why this needs a fixture: a stub that
+    // resolves on setTimeout(0), as the other fixtures use, is far too fast
+    // to ever show the gap. This one takes 300ms, which makes the difference
+    // between "synchronous" and "one tick later" impossible to miss.
+    //
+    // content.js is loaded into an iframe rather than this page so each
+    // scenario gets a clean global scope — the script declares consts at top
+    // level and would throw on a second evaluation.
+    const SLOW_MS = 300;
+
+    function scenario({ stored, mirror, breakStorage }) {
+      return new Promise((resolve) => {
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'width:300px;height:80px;border:1px solid #ccc';
+        document.body.appendChild(frame);
+
+        const doc = frame.contentDocument;
+        const win = frame.contentWindow;
+
+        // Seed the mirror the way a previous session would have left it.
+        try {
+          win.localStorage.clear();
+          if (mirror !== undefined) win.localStorage.setItem('darkboard.enabled', mirror);
+        } catch (e) { /* nothing to seed */ }
+
+        // Optionally make localStorage throw, which is what a partitioned
+        // iframe or a locked-down profile looks like from in here.
+        if (breakStorage) {
+          Object.defineProperty(win, 'localStorage', {
+            get() { throw new Error('localStorage is blocked'); },
+          });
+        }
+
+        const listeners = [];
+        win.chrome = {
+          storage: {
+            local: {
+              get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: stored }), SLOW_MS); },
+              set() {},
+            },
+          },
+          runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } },
+        };
+
+        // ?impl= points at an alternative content script, which is how this
+        // gets compared against the version before the fix — the same
+        // convention fixture-perf uses.
+        //   git show HEAD:src/content.js > test/.tmp-old-content.js
+        const impl = new URLSearchParams(location.search).get('impl');
+        const script = doc.createElement('script');
+        script.src = (impl ? '../test/' + impl : '../src/content.js')
+                   + '?cb=' + Date.now() + Math.random();
+        script.onload = () => {
+          // Read on the very next line, synchronously. Anything deferred to a
+          // timeout or a frame would let the storage callback land first and
+          // the assertion would prove nothing.
+          const gateBeforeStorageResolved =
+            doc.documentElement.hasAttribute('data-bb-dark');
+
+          setTimeout(() => {
+            let mirrorAfter = null;
+            try { mirrorAfter = win.localStorage.getItem('darkboard.enabled'); } catch (e) {}
+
+            resolve({
+              gateBeforeStorageResolved,
+              gateAfterStorageResolved: doc.documentElement.hasAttribute('data-bb-dark'),
+              mirrorAfter,
+              fireToggle: (enabled) => {
+                listeners.forEach(fn => fn({ type: 'BB_DARK_MODE_TOGGLE', enabled }));
+                try { return win.localStorage.getItem('darkboard.enabled'); } catch (e) { return null; }
+              },
+              cleanup: () => frame.remove(),
+            });
+          }, SLOW_MS + 150);
+        };
+        doc.head.appendChild(script);
+      });
+    }
+
+    window.__scenario = scenario;
+
+    window.__probe = async function () {
+      const results = {};
+      const failures = [];
+
+      // 1. Fresh profile, preference on. The gate must already be up while
+      //    the storage read is still in flight.
+      const fresh = await scenario({ stored: true });
+      results.freshInstall = {
+        gateBeforeStorageResolved: fresh.gateBeforeStorageResolved,
+        gateAfter: fresh.gateAfterStorageResolved,
+        mirror: fresh.mirrorAfter,
+      };
+      if (!fresh.gateBeforeStorageResolved) failures.push('fresh: gate not set synchronously');
+      if (!fresh.gateAfterStorageResolved) failures.push('fresh: gate dropped after read');
+      if (fresh.mirrorAfter !== 'on') failures.push('fresh: mirror not written');
+      fresh.cleanup();
+
+      // 2. Mirror says off. No dark flash for someone who turned it off.
+      const off = await scenario({ stored: false, mirror: 'off' });
+      results.mirroredOff = {
+        gateBeforeStorageResolved: off.gateBeforeStorageResolved,
+        gateAfter: off.gateAfterStorageResolved,
+        mirror: off.mirrorAfter,
+      };
+      if (off.gateBeforeStorageResolved) failures.push('off: dark flash before read');
+      if (off.gateAfterStorageResolved) failures.push('off: gate up after read');
+      off.cleanup();
+
+      // 3. Stale mirror — toggled off while this origin had no tab open. One
+      //    frame of the wrong theme is the accepted cost; it must correct.
+      const stale = await scenario({ stored: false, mirror: 'on' });
+      results.staleMirror = {
+        gateBeforeStorageResolved: stale.gateBeforeStorageResolved,
+        gateAfter: stale.gateAfterStorageResolved,
+        mirrorRewritten: stale.mirrorAfter,
+      };
+      if (!stale.gateBeforeStorageResolved) failures.push('stale: expected the optimistic gate');
+      if (stale.gateAfterStorageResolved) failures.push('stale: did not correct to off');
+      if (stale.mirrorAfter !== 'off') failures.push('stale: mirror not rewritten');
+      stale.cleanup();
+
+      // 4. localStorage unavailable. Falls back to on, and nothing throws —
+      //    if it did, content.js would die at document_start and take the
+      //    whole theme with it.
+      const blocked = await scenario({ stored: true, breakStorage: true });
+      results.storageBlocked = {
+        gateBeforeStorageResolved: blocked.gateBeforeStorageResolved,
+        gateAfter: blocked.gateAfterStorageResolved,
+      };
+      if (!blocked.gateBeforeStorageResolved) failures.push('blocked: no fallback gate');
+      if (!blocked.gateAfterStorageResolved) failures.push('blocked: gate lost');
+      blocked.cleanup();
+
+      // 5. A toggle has to update the mirror, or the next load flashes.
+      const toggling = await scenario({ stored: true });
+      results.mirrorAfterToggleOff = toggling.fireToggle(false);
+      results.mirrorAfterToggleOn = toggling.fireToggle(true);
+      if (results.mirrorAfterToggleOff !== 'off') failures.push('toggle off: mirror not updated');
+      if (results.mirrorAfterToggleOn !== 'on') failures.push('toggle on: mirror not updated');
+      toggling.cleanup();
+
+      return { failures, results };
+    };
+  </script>
+</body>
+</html>

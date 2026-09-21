@@ -523,6 +523,70 @@ stylesheet rendered black-on-white and scored 15:1 — the fixture passed on a
 fight that does not happen. **Reproduce the real cascade, not a harder
 invented one**, or the fixture certifies the bug.
 
+## fixture-fouc.html
+
+Covers the extension's headline claim: `[data-bb-dark]` is on `<html>` before
+first paint.
+
+Half of it was already true — the manifest injects `dark-mode.css` at
+`document_start`. The other half was not. Every rule in the stylesheet is
+gated on that attribute, and it used to be set inside the callback of an
+**async** `chrome.storage.local.get`. The stylesheet was fully loaded before
+the first frame with nothing to switch it on.
+
+The race was nearly always won, which is precisely why this fixture has to
+exist and why none of the others caught it: they stub storage with
+`setTimeout(…, 0)`, far too fast to ever expose the gap. This one resolves
+after **300 ms**, which makes "synchronous" and "one tick later" impossible to
+confuse.
+
+`content.js` runs in an iframe per scenario so each gets a clean global scope —
+the script declares `const`s at top level and throws on a second evaluation.
+
+**The load-bearing detail:** the gate is read on the line immediately after
+the script's `onload`, synchronously. Deferring that read to a timeout or a
+frame would let the storage callback land first, and the assertion would prove
+nothing while still passing.
+
+| Scenario | Expected |
+|---|---|
+| Fresh profile, preference on | gate up **before** the read resolves, mirror written `on` |
+| Mirror says `off` | no gate at any point — no dark flash for someone who turned it off |
+| Mirror `on`, storage says `off` | optimistic gate, then corrected, mirror rewritten `off` |
+| `localStorage` throws | gate up anyway, nothing escapes — a throw here would kill `content.js` at `document_start` and take the theme with it |
+| Toggle message | mirror tracks the new value both ways |
+
+`?impl=` points at an alternative content script, the same convention
+`fixture-perf.html` uses:
+
+```bash
+git show HEAD:src/content.js > test/.tmp-old-content.js
+```
+
+Against the version before the fix it reports **7 failures**, led by
+`gate not set synchronously`.
+
+### The mirror
+
+A content script has no synchronous access to `chrome.storage`, but it does
+have synchronous access to `localStorage` on the page's own origin. The
+preference is mirrored to `darkboard.enabled` there and read on the next line
+rather than the next tick.
+
+`chrome.storage` remains the single source of truth; the mirror is consulted
+for exactly one thing, the value to use before the real one arrives. It is
+written from `content.js` only — `popup.js` runs on the extension origin and
+cannot reach Blackboard's `localStorage`.
+
+It goes stale in one case: the preference changed while this origin had no tab
+open. That costs a single frame of the wrong theme on the next load, after
+which it is rewritten and every load thereafter is clean.
+
+**`fixture-stream.html` clears that key on load.** It survives between runs on
+this origin, so without clearing it a previous `?off` run would decide the
+opening frame of the next default run and the fixture would report whatever it
+was last asked to do.
+
 ## restyle.js
 
 Forces a genuine style resolution on an element before it is measured, which

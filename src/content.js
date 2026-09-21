@@ -4,32 +4,85 @@
  * Runs at document_start (before any HTML is painted) to prevent FOUC.
  *
  * Flow:
- *   1. Read storage for the saved preference and stamp [data-bb-dark] onto
- *      <html> as soon as it resolves.
- *   2. Start the DOM-mutating enhancements only when dark mode is actually on.
- *   3. Listen for toggle messages from the popup (cross-tab sync).
- *   4. Observe <html> attribute changes to keep the toggle in sync
+ *   1. Stamp [data-bb-dark] onto <html> synchronously, from a local mirror of
+ *      the preference, before anything can paint.
+ *   2. Read chrome.storage for the authoritative value and correct the gate
+ *      if the mirror was stale.
+ *   3. Start the DOM-mutating enhancements only when dark mode is actually on.
+ *   4. Listen for toggle messages from the popup (cross-tab sync).
+ *   5. Observe <html> attribute changes to keep the toggle in sync
  *      if another script removes our attribute.
  */
 
 const ATTR = 'data-bb-dark';
+
+// ─── The preference mirror ────────────────────────────────────────────────
+// The stylesheet is injected by the manifest at document_start, so it is
+// ready before first paint — but every rule in it is gated on [data-bb-dark],
+// and that attribute used to be set inside the callback of an async
+// chrome.storage read. The CSS was in place before the first frame; the
+// switch that turns it on was not. It won the race nearly always, which is
+// why nobody caught it, but "nearly always" is not the claim, and the load
+// most likely to lose the race is a cold profile on a busy machine at night,
+// which is the exact case this extension exists for.
+//
+// A content script has no synchronous access to chrome.storage, but it does
+// have synchronous access to localStorage on the page's own origin. So the
+// preference is mirrored there and read on the next line rather than the next
+// tick. chrome.storage stays the single source of truth; this is a cache and
+// is consulted for one thing only — the value to use before the real one
+// arrives.
+//
+// Unreadable storage (blocked cookies, a partitioned iframe, a private
+// window) falls back to on, which matches the install default.
+const MIRROR_KEY = 'darkboard.enabled';
+
+function readMirror() {
+  try {
+    return localStorage.getItem(MIRROR_KEY) !== 'off';
+  } catch (e) {
+    return true;
+  }
+}
+
+function writeMirror(enabled) {
+  const value = enabled ? 'on' : 'off';
+  try {
+    // Checked first because this runs on every page load in every frame, and
+    // all_frames means a page with several embedded frames would otherwise
+    // rewrite an unchanged value once per frame per load.
+    if (localStorage.getItem(MIRROR_KEY) !== value) {
+      localStorage.setItem(MIRROR_KEY, value);
+    }
+  } catch (e) {
+    // Nothing to do. The mirror is an optimisation; storage still decides.
+  }
+}
 
 // Stamped on every element whose background we override inline, so the
 // override can be found and undone when dark mode is switched off.
 const MARK = 'data-darkboard-bg';
 
 // Kept in sync by init() and the message listener so the observers can
-// read it synchronously without an async storage round-trip.
+// read it synchronously without an async storage round-trip. Seeded from the
+// mirror below before either of those runs, so it is never wrong for longer
+// than one storage round-trip and never merely assumed to be false.
 let _darkEnabled = false;
 
 let streamObserver = null;
 let gradeObserver = null;
 
 function setDarkMode(enabled) {
+  // Guarded because this now runs as the very first thing the script does,
+  // in every frame, rather than inside a callback that could only fire once
+  // the document was well underway.
+  const root = document.documentElement;
+  if (!root) return;
+
   if (enabled) {
-    document.documentElement.setAttribute(ATTR, '');
+    root.setAttribute(ATTR, '');
   } else {
-    document.documentElement.removeAttribute(ATTR);
+    root.removeAttribute(ATTR);
   }
 }
 
@@ -41,17 +94,37 @@ function whenDomReady(fn) {
   }
 }
 
-// ─── Step 1: Read saved preference and apply IMMEDIATELY ──────────────────
-// chrome.storage.local.get is async, but because our CSS file is already
-// injected by the manifest at document_start, the styles are ready the
-// moment the attribute lands on <html>. The storage read is fast enough
-// (~1–3ms) that users never see a flash.
+// ─── Step 1: Apply the gate synchronously, before anything paints ─────────
+// This is the whole of the zero-flash guarantee. Everything below it is
+// correction.
+_darkEnabled = readMirror();
+setDarkMode(_darkEnabled);
+
+// ─── Step 2: Read the authoritative preference and correct if needed ──────
+// The mirror is only stale in one situation: the preference was changed while
+// this origin had no tab open to hear about it. That costs a single frame of
+// the wrong theme on the next load, after which the mirror is rewritten and
+// every load thereafter is clean.
 function init() {
   chrome.storage.local.get('darkModeEnabled', (result) => {
     // Default to TRUE on first install — users expect dark mode to just work
     const enabled = result.darkModeEnabled !== false;
-    _darkEnabled = enabled;
-    setDarkMode(enabled);
+    writeMirror(enabled);
+
+    if (enabled !== _darkEnabled) {
+      _darkEnabled = enabled;
+      if (enabled) {
+        setDarkMode(true);
+      } else {
+        // Same ordering as the message listener below, and for the same
+        // reason: the inline overrides carry !important and are not gated by
+        // the attribute, so they have to go first. Nothing has started this
+        // early, which makes it a no-op today — but writing it the other way
+        // round would leave a trap for whoever changes the timing later.
+        stopEnhancements();
+        setDarkMode(false);
+      }
+    }
 
     // The storage read can resolve either side of DOMContentLoaded, so the
     // enhancements are deferred rather than assuming <body> exists yet.
@@ -63,6 +136,10 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type !== 'BB_DARK_MODE_TOGGLE') return;
 
   _darkEnabled = message.enabled;
+  // Keeps the next load's first frame correct. This is the only place the
+  // mirror can be written from when the user acts: popup.js runs on the
+  // extension origin, not Blackboard's, so it cannot reach this localStorage.
+  writeMirror(message.enabled);
 
   if (message.enabled) {
     setDarkMode(true);

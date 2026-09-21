@@ -225,18 +225,42 @@ And the tokens could not express a hierarchy anyway: page to card measured
 1.050:1 and card to raised 1.088:1, steps too small to see, so panels read flat
 however well the selectors matched.
 
+The selector half was fixed first and the tokens after, but the threshold the
+fixture asserted — 1.08:1 per step — was set below the visibility floor, so a
+ladder nobody could see still passed. **Contrast ratio is the wrong metric for
+a step between two near-blacks:** it compresses hard at the bottom of the
+range, and 1.08:1 and 1.21:1 look far more alike as numbers than the surfaces
+they describe do on screen. The ladder is designed in CIE L\* instead, where
+each tier is at least 3 L\* clear of its neighbours, and the ratios below are
+recorded as consequences rather than targets.
+
+| Tier | Token | L\* | step |
+|---|---|---|---|
+| page | `--bg-primary` | 2.8 | — |
+| sidebar | `--bg-sidebar` | 6.1 | +3.3 |
+| card | `--bg-secondary` | 12.1 | +9.3 on page |
+| row stripe | `--bg-row-alt` | 15.5 | +3.4 on card |
+| input | `--bg-tertiary` | 17.9 | +5.8 on card |
+| raised | `--bg-raised` | 24.0 | +6.0 on input |
+
 Each tier is matched three ways in the fixture, by semantic element, by ARIA
 role and by the legacy class pattern, because roles are the reliable half of
 the net. Blackboard's class names are JSS-generated, but its roles are stable
 since assistive technology depends on them.
 
-| Check | Expected |
-|---|---|
-| page, card, raised backgrounds | three distinct values |
-| page to card, card to raised | at least 1.08:1 each, measured |
-| Card border against card fill | at least 1.2:1 |
-| `article`, `aside`, `[role="region"]`, `Card__` | resolve to the card fill |
-| `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`, MUI paper | resolve to the raised fill |
+| Check | Expected | Measured |
+|---|---|---|
+| page, card, raised backgrounds | three distinct values | — |
+| page to card | at least 1.15:1 | 1.21:1 |
+| card to raised | at least 1.30:1 | 1.42:1 |
+| Card border against card fill | at least 1.6:1 | 1.76:1 |
+| `article`, `aside`, `[role="region"]`, `Card__` | resolve to the card fill | — |
+| `[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`, MUI paper | resolve to the raised fill | — |
+
+Dialogs and menus carry `--border-raised` rather than `--border-strong`. One
+border token cannot serve both a near-black canvas and a `#383844` dialog:
+`--border-strong` measures 1.03:1 against the raised fill, which is no border
+at all.
 
 ## fixture-hover.html
 
@@ -263,9 +287,35 @@ git show HEAD:src/dark-mode.css > test/.tmp-old.css
 | `<li>` containing a link, `<li role>` | a hover background rule applies |
 | `arrow-icon`, `narrow-column`, `grow-wrap` | no hover background rule |
 | `table-row`, `DataRow`, `[role="row"]` | a hover background rule applies |
-| `tabindex="-1"` | no hover background rule |
-| `tabindex="0"` | a hover background rule applies |
+| `tabindex="-1"`, `tabindex="0"` | no hover background rule |
 | Inline `<a>` | no hover background, hover colour resolves to `--text-link-hover` |
+| A wrapper: `tabindex="0"`, `message-Rows-container`, `listItems-scroller` | no hover background rule |
+| The row inside each of those wrappers | a hover background rule applies |
+| `<a><span>label</span></a>` | the span resolves to `--text-link`, not `--text-main` |
+
+### Why the wrappers matter
+
+Section 3 gives every element `background-color: inherit !important`, which
+leaves a descendant with no background of its own to fall back to. A fill
+landing on a container therefore **floods its entire subtree** — measured on a
+bare `<div class="message-Row" tabindex="0">`, the container, its child, its
+grandchild and its sibling all resolved to the hover fill. On the live pages
+that washed whole regions of the activity stream in one colour.
+
+Two selectors were doing it. `[tabindex]:not([tabindex="-1"])` is now gone
+outright, because Blackboard puts `tabindex="0"` on scroll regions and it
+matched wrappers the size of a page column. **That is a deliberate coverage
+loss:** a genuinely interactive `<div tabindex="0">` with no other signal no
+longer gets a hover. Every discriminator tried for keeping it — requiring no
+focusable descendant, requiring no element children — either still matched
+scroll regions or excluded real controls, and the other selectors in the block
+(rows, list items, `clickable`, `li`, `[role]`) already cover the realistic
+cases. The remaining substring selectors keep their coverage and instead carry
+a `:not(:has(...))` guard so only the innermost match paints.
+
+This went unnoticed for so long because the old grey hover measured 1.09:1
+against the surface beneath it, so the flood was invisible. Retuning the
+palette did not cause the bug; it revealed it.
 
 Against the previous stylesheet every one of those "no hover" elements had a
 hover background, and the inline link matched two colour rules with

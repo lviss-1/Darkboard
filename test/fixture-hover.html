@@ -43,7 +43,33 @@
   <div id="d-tab-inert" tabindex="-1">programmatically focusable only</div>
   <div id="d-tab-real" tabindex="0">keyboard reachable</div>
 
+  <!-- Containers, not rows. Section 3 gives every element
+       `background-color: inherit !important`, so a descendant has no
+       background of its own and a fill landing on a wrapper floods the whole
+       subtree. These are the shapes that wrapper actually takes on
+       Blackboard: a scroll region carrying tabindex="0", and an outer
+       element whose class name contains a row word because the rows are
+       inside it. Neither may take a hover background. -->
+  <div id="d-wrap-tabindex" tabindex="0">
+    <div class="message-row" id="d-wrap-inner-row">an actual row</div>
+  </div>
+  <!-- Mixed casing between the wrapper and its children, which is the normal
+       case in Blackboard's markup. A guard that only tested its own spelling
+       did not see `message-row` from inside `[class*="Row"]` and let this
+       wrapper flood. -->
+  <div id="d-wrap-row" class="message-Rows-container">
+    <div class="message-row" id="d-wrap-inner-caps">an actual row</div>
+  </div>
+  <div id="d-wrap-listitem" class="listItems-scroller">
+    <div class="listItem" id="d-wrap-inner-item">an actual list item</div>
+  </div>
+
   <p>Prose with <a id="a-inline" href="#">an inline link</a> in it.</p>
+
+  <!-- Blackboard wraps link labels in spans constantly. The typography block
+       targets `span` directly, so without a rule putting the anchor's colour
+       back the label renders as body text with an underline. -->
+  <p>Prose with <a id="a-span-link" href="#"><span id="a-span-inner">a spanned link</span></a> in it.</p>
 
   <!-- Anchors Blackboard styles as buttons. The last one already matched a
        section 8 rule before this change and must not have regressed. -->

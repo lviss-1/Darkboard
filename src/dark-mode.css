@@ -62,7 +62,7 @@ html[data-bb-dark] [class*="MuiMenu-paper"],
 html[data-bb-dark] [class*="MuiPaper"] {
   background-color: var(--bg-raised) !important;
   background: var(--bg-raised) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border: 1px solid var(--border-raised) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8) !important;
 }
 
@@ -74,37 +74,64 @@ html[data-bb-dark] [class*="MuiMenuItem"] {
 
 html[data-bb-dark] [class*="MuiMenuItemroot"]:hover,
 html[data-bb-dark] [class*="MuiMenuItem"]:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* ─── 1. PALETTE ─────────────────────────────────────────────────────────── */
 :root {
-  /* Backgrounds — layered blacks */
-  /* A surface ladder, not four shades of the same black. Each step is a
-     perceptible lift on the one below: the previous values put page to card at
-     1.050:1 and card to raised at 1.088:1, which is invisible, so panels read
-     flat however well the selectors matched them. */
+  /* Backgrounds — a surface ladder, not four shades of the same black.
+     Steps are sized in CIE L*, not contrast ratio. Ratio compresses badly down
+     here: the previous ladder read 1.10 / 1.09 / 1.08 between tiers, which
+     sounds like a gradient and renders as one flat black, and the sidebar sat
+     1.02:1 off the canvas so the nav rail had no edge at all. In L* those same
+     steps were 4.7 / 4.1 / 3.0 with the sidebar 0.9 off the page.
+
+     Each tier below is at least 3 L* clear of its neighbours, and the canvas to
+     card jump is the largest at 9.3 because that is the one carrying "this is a
+     panel". L* values: 2.8 / 6.1 / 12.1 / 15.5 / 17.9 / 24.0. */
   --bg-primary:       #0a0a0c;   /* page canvas — near-black */
-  --bg-secondary:     #16161c;   /* cards, panels — 1.10:1 on the canvas */
-  --bg-tertiary:      #1e1e26;   /* inputs, hover states — 1.20:1 */
-  --bg-raised:        #24242e;   /* dialogs, menus, anything floating — 1.29:1 */
-  --bg-sidebar:       #0d0d10;   /* left-nav rail */
+  --bg-sidebar:       #131319;   /* left-nav rail — +3.3 L* on the canvas */
+  --bg-secondary:     #1f1f27;   /* cards, panels — +9.3 L* */
+  --bg-row-alt:       #26262f;   /* zebra striping — +3.4 L* on a card */
+  --bg-tertiary:      #2b2b35;   /* inputs, static fills — +5.8 L* on a card */
+  --bg-raised:        #383844;   /* dialogs, menus, anything floating — +6.0 L* */
 
-  /* Text — warm whites */
-  --text-main:        #f0eee8;   /* body copy */
-  --text-muted:       #8a8490;   /* captions, placeholders, secondary */
+  /* Interactive hover. Deliberately maroon-cast rather than one more grey:
+     zebra striping already occupies the grey step just above a card, so a grey
+     hover landed 1.1 L* from an alternate row and vanished on every other line
+     of a gradebook. This is 8.5 L* off a card and 5.1 off an alternate row, and
+     the hue shift carries the state even where the lightness step is subtle. */
+  --bg-hover:         #3f2b3e;
+
+  /* Text — warm whites, in three tiers.
+     Two tiers existed before but only one was reachable: section 3 forces
+     `color: inherit` onto every element and section 4 then pins p/span/li/td/th
+     to --text-main at a specificity nothing below it cleared, so captions,
+     timestamps and helper text all rendered at full body brightness and the
+     page had no hierarchy. Section 4b restores the muted tier.
+     Every value clears 4.5:1 on all six surfaces above. */
+  --text-main:        #f0eee8;   /* body copy — 9.96:1 at worst (on raised) */
+  --text-muted:       #a8a2b0;   /* captions, timestamps, secondary — 4.66:1 */
   --text-heading:     #ffffff;   /* h1–h4 */
-  --text-link:        #c9748e;   /* links — light maroon */
-  --text-link-hover:  #e8a0b4;   /* link hover */
+  --text-disabled:    #6f6a78;   /* disabled controls — exempt from AA by 1.4.3 */
+  --text-link:        #dd93aa;   /* links — light maroon, 4.86:1 at worst */
+  --text-link-hover:  #f0bbcb;   /* link hover */
 
-  /* Borders — dark and invisible by default, maroon only on focus */
-  --border-subtle:    #1e1e24;   /* near-invisible dividers */
-  --border-strong:    #2e2e38;   /* slightly visible borders */
+  /* Borders. One token cannot serve both a near-black canvas and a #383844
+     dialog, so card edges and floating-surface edges are separate. */
+  --border-subtle:    #2c2c35;   /* quiet dividers inside a card */
+  --border-strong:    #464654;   /* card edges — 18 L* off the card fill */
+  --border-raised:    #56566a;   /* dialog and menu edges, on the raised fill */
   /* Outline for interactive controls. WCAG 1.4.11 wants 3:1 against the
-     adjacent surface for a component boundary; this measures 3.21:1 on
-     --bg-primary, where --border-strong manages only 1.47:1. */
-  --border-interactive: #606070;
-  --border-focus:     #6d1a36;   /* maroon — ONLY on focused inputs */
+     adjacent surface for a component boundary. This clears it on all six
+     surfaces, worst case 3.20:1 on --bg-raised. */
+  --border-interactive: #85859a;
+  /* Focus ring. Not the maroon: --accent-primary measures 1.74:1 on the canvas
+     and 1.46:1 against the input fill it was drawn around, well short of the
+     3:1 a focus indicator needs. The popup already made this correction for its
+     own ring; this is the same fix for the page. Worst case here is 5.47:1,
+     against the maroon fill of a focused primary button. */
+  --border-focus:     #e8a0b4;
 
   /* Iona Maroon accent system */
   --accent-primary:   #6d1a36;   /* primary CTA, active states */
@@ -193,25 +220,40 @@ html[data-bb-dark] [class*="notification"] {
     box-shadow: none !important;
 }
 
-/* ─── COURSE CARD EXCEPTION — preserve original photo + card appearance ──
-   The user wants course cards to look exactly as Blackboard intended:
-   course photo on top, white card body with course name and instructor.
-   We opt these elements OUT of the universal dark override entirely.
-   Think of it as taping off a section before painting — these stay original. */
+/* ─── COURSE CARD — photo on top, themed card body below ─────────────────
+   This block used to claim it opted course cards out of the universal
+   override and left Blackboard's own white card body intact. It could not do
+   that, and did not. `background-color` is not an inherited property, so
+   `unset` resolves to `initial`, which is `transparent` — and carrying
+   `!important` it also beat Blackboard's own rule rather than deferring to it.
+   The result was the opposite of the comment: not a white card body but no
+   card body at all, so each course rendered as a photo with the title and
+   instructor floating on bare canvas underneath.
+
+   The photo is what has to survive, not the white. The body is themed like
+   every other card so the cards read as a grid of panels. */
 
 html[data-bb-dark] [class*="course-card"],
 html[data-bb-dark] [class*="CourseCard"],
+html[data-bb-dark] bb-course-card,
+html[data-bb-dark] [class*="courseCard"],
+html[data-bb-dark] [data-component="courseCard"] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: var(--shadow-card) !important;
+  overflow: hidden !important;
+}
+
+/* Descendants inherit the card fill rather than being pinned to it, so the
+   photo, any badge and the grade pill can still paint over it. */
 html[data-bb-dark] [class*="course-card"] *,
 html[data-bb-dark] [class*="CourseCard"] *,
-html[data-bb-dark] bb-course-card,
 html[data-bb-dark] bb-course-card *,
-html[data-bb-dark] [class*="courseCard"],
 html[data-bb-dark] [class*="courseCard"] *,
-html[data-bb-dark] [data-component="courseCard"],
 html[data-bb-dark] [data-component="courseCard"] * {
-  background-color: unset !important;
-  color: unset !important;
-  border-color: unset !important;
+  background-color: inherit !important;
+  border-color: var(--border-subtle) !important;
 }
 
 /* The image/banner area at the top of each card must always show */
@@ -226,7 +268,79 @@ html[data-bb-dark] [class*="card-hero"],
 html[data-bb-dark] [class*="CardHero"] {
   background-color: unset !important;
   opacity: 1 !important;
-  filter: none !important;
+}
+
+/* ─── 3b. CONTENT IMAGERY ────────────────────────────────────────────────
+   Nothing dimmed images before, and the rule above used to end in
+   `filter: none !important`, which foreclosed it. Most of Blackboard's course
+   banners are the university wordmark on a white field, so the courses page
+   rendered as a grid of bright white rectangles on a near-black canvas — the
+   single loudest thing in the theme. The Turnitin logo on the institution
+   page is the same problem in one block.
+
+   Dimming at rest and restoring on hover keeps the page calm while leaving
+   every image one pointer-move from its true colours, which matters because
+   some of these are course photos carrying real information.
+
+   No `!important`. These should lose to anything more specific, and a page
+   that sets its own filter for a reason should keep it.
+
+   The exclusions are one `:not(:is(...))`, not a chain of `:not()`s, and they
+   use the `i` flag rather than spelling each name twice. That is a specificity
+   decision, not a tidiness one: `:not()` contributes its argument's
+   specificity, so six chained ones put this rule at (0,7,2) and it beat its
+   own hover restore at (0,2,2) — images dimmed and then never came back.
+   `:is()` contributes only its most specific argument, which holds the whole
+   selector at (0,2,2) so the restore below ties and wins on source order. */
+html[data-bb-dark] img:not(:is([class*="icon" i], [class*="avatar" i], [class*="logo" i])),
+html[data-bb-dark] [class*="course-banner"],
+html[data-bb-dark] [class*="CourseBanner"],
+html[data-bb-dark] [class*="card-image"],
+html[data-bb-dark] [class*="CardImage"],
+html[data-bb-dark] [class*="card-hero"],
+html[data-bb-dark] [class*="CardHero"] {
+  filter: brightness(0.82) contrast(1.02);
+  transition: filter 0.15s ease;
+}
+
+/* Restored on hover or keyboard focus, whether the pointer is on the image
+   itself or anywhere on the card or link wrapping it. */
+html[data-bb-dark] img:hover,
+html[data-bb-dark] a:hover img,
+html[data-bb-dark] a:focus-visible img,
+html[data-bb-dark] button:hover img,
+html[data-bb-dark] button:focus-visible img,
+html[data-bb-dark] [class*="card"]:hover img,
+html[data-bb-dark] [class*="Card"]:hover img,
+html[data-bb-dark] [class*="card"]:focus-within img,
+html[data-bb-dark] [class*="Card"]:focus-within img,
+html[data-bb-dark] [class*="course-banner"]:hover,
+html[data-bb-dark] [class*="CourseBanner"]:hover,
+html[data-bb-dark] [class*="card-image"]:hover,
+html[data-bb-dark] [class*="CardImage"]:hover,
+html[data-bb-dark] [class*="card-hero"]:hover,
+html[data-bb-dark] [class*="CardHero"]:hover {
+  filter: none;
+}
+
+/* SVG is currentColor-driven and already tracks the text palette; dimming it
+   only mutes the chrome. Inline SVG is excluded here rather than through one
+   more :not() on the selector above, which is long enough already. */
+html[data-bb-dark] svg,
+html[data-bb-dark] svg * {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-bb-dark] img,
+  html[data-bb-dark] [class*="course-banner"],
+  html[data-bb-dark] [class*="CourseBanner"],
+  html[data-bb-dark] [class*="card-image"],
+  html[data-bb-dark] [class*="CardImage"],
+  html[data-bb-dark] [class*="card-hero"],
+  html[data-bb-dark] [class*="CardHero"] {
+    transition: none;
+  }
 }
 
 
@@ -257,6 +371,85 @@ html[data-bb-dark] a {
 }
 html[data-bb-dark] a:hover {
   color: var(--text-link-hover) !important;
+}
+
+/* A link whose label sits in a <span> — which is most of Blackboard — took the
+   body colour, not the link colour. The `span` rule above targets that span
+   directly, so it beats the colour the anchor would otherwise pass down, and
+   the anchor's own rule never reaches the text. Measured: a bare <a> resolved
+   to --text-link while <a><span>text</span></a> resolved to --text-main. The
+   whole profile page rendered as white underlined text because of it.
+
+   Specificity: `html[data-bb-dark] a span` is (0,1,3), clearing the (0,1,2) of
+   the typography block. The universal selector form is deliberately second and
+   only (0,1,2), so it cannot outrank anything a later section sets on a
+   descendant — the grade pill at (0,2,1) in particular keeps its own colour. */
+html[data-bb-dark] a span,
+html[data-bb-dark] a * {
+  color: inherit !important;
+}
+
+/* Colour alone does not identify a link here: --text-link against --text-main
+   measures 1.85:1, and WCAG technique G183 wants 3:1 before colour can carry
+   it unaided. Raising the link colour far enough would push it to white and
+   lose the accent, so prose links are underlined instead.
+
+   Scoped to prose. Blackboard styles a great many anchors as nav items, tabs
+   and card titles, and underlining those would be noise — section 8 already
+   strips the underline from anchors styled as buttons. */
+html[data-bb-dark] p > a,
+html[data-bb-dark] li > a:not([class*="nav"]):not([class*="Nav"]),
+html[data-bb-dark] td > a,
+html[data-bb-dark] dd > a {
+  text-decoration: underline !important;
+  text-underline-offset: 0.15em !important;
+}
+
+/* ─── 4b. SECONDARY TEXT TIER ────────────────────────────────────────────
+   Restores the hierarchy the universal rule flattens.
+
+   Section 3 forces `color: inherit !important` onto `*` — that is what keeps
+   Blackboard's near-black body text readable, and it is not going anywhere —
+   but section 4 then pins p/span/li/label/td/th to --text-main at (0,1,2).
+   Between them, every string on the page rendered at #f0eee8: a timestamp
+   weighed exactly as much as a heading's body copy, and --text-muted reached
+   only the handful of elements some later rule happened to name. A page where
+   nothing recedes reads as undesigned no matter how good the palette is.
+
+   Specificity: every selector here is at least (0,2,1), which clears section
+   4's (0,1,2) and the universal rule's (0,1,1). Leading with `body` where the
+   selector would otherwise fall short.
+
+   Substring matches are guarded the same way section 28 guards its own:
+   "date" would match "update" and "validate", "time" matches "timeline" and
+   "runtime", so both are matched as whole words via the -/_ delimiters
+   Blackboard's class names actually use. */
+html[data-bb-dark] body small,
+html[data-bb-dark] body figcaption,
+html[data-bb-dark] body time,
+html[data-bb-dark] body [class*="caption"],
+html[data-bb-dark] body [class*="Caption"],
+html[data-bb-dark] body [class*="subtitle"],
+html[data-bb-dark] body [class*="Subtitle"],
+html[data-bb-dark] body [class*="secondary-text"],
+html[data-bb-dark] body [class*="SecondaryText"],
+html[data-bb-dark] body [class*="helper"],
+html[data-bb-dark] body [class*="Helper"],
+html[data-bb-dark] body [class*="hint"],
+html[data-bb-dark] body [class*="Hint"],
+html[data-bb-dark] body [class*="byline"],
+html[data-bb-dark] body [class*="Byline"],
+html[data-bb-dark] body [class*="metadata"],
+html[data-bb-dark] body [class*="Metadata"],
+html[data-bb-dark] body [class*="timestamp"],
+html[data-bb-dark] body [class*="Timestamp"],
+html[data-bb-dark] body [class*="-date"],
+html[data-bb-dark] body [class*="_date"],
+html[data-bb-dark] body [class*="date-"],
+html[data-bb-dark] body [class*="-time"],
+html[data-bb-dark] body [class*="_time"],
+html[data-bb-dark] body [class*="MuiFormHelperText"] {
+  color: var(--text-muted) !important;
 }
 
 /* ─── 5. BLACKBOARD ULTRA — HIGH-LEVEL CONTAINERS ───────────────────────── */
@@ -397,8 +590,8 @@ html[data-bb-dark] [class*="Button--secondary"] {
 
 html[data-bb-dark] button:not([class*="primary"]):hover,
 html[data-bb-dark] [class*="Button--secondary"]:hover {
-  background-color: var(--bg-tertiary) !important;
-  border-color: var(--accent-primary) !important;
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-interactive) !important;
   color: var(--text-heading) !important;
 }
 
@@ -426,7 +619,7 @@ html[data-bb-dark] body button[class*="icon"]:hover,
 html[data-bb-dark] body button[class*="Icon"]:hover,
 html[data-bb-dark] body [role="button"][class*="icon"]:hover,
 html[data-bb-dark] body [role="button"][class*="Icon"]:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* Blackboard styles some anchors as buttons. Without this they take the link
@@ -447,8 +640,8 @@ html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button
 }
 
 html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"]):hover {
-  background-color: var(--bg-tertiary) !important;
-  border-color: var(--accent-primary) !important;
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-interactive) !important;
   color: var(--text-heading) !important;
 }
 
@@ -474,10 +667,13 @@ html[data-bb-dark] th {
   border-bottom: 1px solid var(--border-strong) !important;
 }
 
+/* Zebra striping gets its own tier. It used --bg-tertiary, which is also what
+   the row hover in section 23 paints, so hovering an even row produced no
+   feedback whatsoever — every other line of the gradebook was inert. */
 html[data-bb-dark] [role="grid"] tr:nth-child(even),
 html[data-bb-dark] [role="table"] tr:nth-child(even),
 html[data-bb-dark] table:has(thead) tr:nth-child(even) {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-row-alt) !important;
 }
 
 html[data-bb-dark] td {
@@ -494,7 +690,7 @@ html[data-bb-dark] [class*="Modal__"],
 html[data-bb-dark] [class*="Drawer__"],
 html[data-bb-dark] [class*="Flyout__"] {
   background-color: var(--bg-raised) !important;
-  border: 1px solid var(--border-strong) !important;
+  border: 1px solid var(--border-raised) !important;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7) !important;
 }
 
@@ -672,15 +868,58 @@ html[data-bb-dark] [class*="ScoreBadge"] {
   font-weight: 600 !important;
 }
 
-/* Preserve the colored pill backgrounds Blackboard sets inline
-   (e.g. the yellow "74/100" pill — we don't want to override those
-   since they already communicate grade status visually)              */
+/* Blackboard's own inline-coloured grade pills.
+
+   This block used to claim it left those pills alone because they already
+   carry the status visually. It could not, and did not — the same defect the
+   course-card block had. `background-color` is not inherited, so `unset`
+   resolves to `initial`, which is `transparent`, and carrying `!important` it
+   beat Blackboard's inline value rather than deferring to it. Every pill on
+   the real gradebook rendered as a hollow outline with body-white text.
+
+   Deferring to Blackboard is not recoverable from here anyway: once `*` in
+   section 3 carries `color: inherit !important`, no CSS keyword reaches back
+   into another author stylesheet. So the pills are restated in this theme's
+   own palette, which is what the four .darkboard-pill fills above already do
+   at 7:1 or better. `currentColor` on the border keeps the two in step. */
 html[data-bb-dark] [class*="grade-badge"][style*="background"],
 html[data-bb-dark] [class*="GradeBadge"][style*="background"],
 html[data-bb-dark] [class*="score-badge"][style*="background"],
 html[data-bb-dark] [class*="ScoreBadge"][style*="background"] {
-  background-color: unset !important;
-  color: unset !important;
+  background-color: var(--bg-tertiary) !important;
+  background-image: none !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-interactive) !important;
+}
+
+/* Where content.js has worked out the actual percentage, the status fill wins
+   over the neutral one above. Specificity (0,3,1) clears that block's (0,2,1). */
+html[data-bb-dark] [class*="adge"][data-grade-status="good"],
+html[data-bb-dark] [class*="core-badge"][data-grade-status="good"] {
+  background-color: var(--accent-success) !important;
+  color: var(--bg-primary) !important;
+  border-color: currentColor !important;
+}
+
+html[data-bb-dark] [class*="adge"][data-grade-status="fair"],
+html[data-bb-dark] [class*="core-badge"][data-grade-status="fair"] {
+  background-color: var(--accent-fair) !important;
+  color: var(--bg-primary) !important;
+  border-color: currentColor !important;
+}
+
+html[data-bb-dark] [class*="adge"][data-grade-status="average"],
+html[data-bb-dark] [class*="core-badge"][data-grade-status="average"] {
+  background-color: var(--accent-warn) !important;
+  color: var(--bg-primary) !important;
+  border-color: currentColor !important;
+}
+
+html[data-bb-dark] [class*="adge"][data-grade-status="poor"],
+html[data-bb-dark] [class*="core-badge"][data-grade-status="poor"] {
+  background-color: var(--accent-danger) !important;
+  color: var(--bg-primary) !important;
+  border-color: currentColor !important;
 }
 
 
@@ -903,7 +1142,7 @@ html[data-bb-dark] .activity-group .stream-item:hover,
 html[data-bb-dark] div.stream-item:hover,
 html[data-bb-dark] div.stream-item.angular-animate:hover,
 html[data-bb-dark] li.stream-item-container:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* THE KEY FIX: override the light grey hover with a dark highlight */
@@ -916,7 +1155,7 @@ html[data-bb-dark] [class*="timeline-item"]:hover,
 html[data-bb-dark] [class*="TimelineItem"]:hover,
 html[data-bb-dark] bb-activity-stream li:hover,
 html[data-bb-dark] bb-stream li:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
   color: var(--text-main) !important;
 }
 
@@ -984,11 +1223,22 @@ html[data-bb-dark] [class*="activity"] button {
   border: 1px solid var(--border-subtle) !important;
 }
 
-html[data-bb-dark] [class*="stream"] button:hover,
-html[data-bb-dark] [class*="activity"] button:hover {
-  background-color: var(--accent-primary) !important;
-  color: var(--text-on-accent) !important;
-  border-color: transparent !important;
+/* Guarded the same way as the zero-grey block, and for the same reason. The
+   activity stream's collapsible group headers are buttons that wrap the whole
+   group, so an unguarded `button:hover` here put --accent-primary behind an
+   entire section — and section 3's `background-color: inherit` carried it down
+   to every row inside. On the live stream that painted the whole Upcoming
+   block maroon while Today, directly below it, stayed dark.
+
+   The fill is --bg-hover rather than the accent for the same reason buttons
+   elsewhere use it: a full maroon slab on pointer-over is far louder than a
+   hover state needs to be, and it left the pink course links sitting on it at
+   poor contrast. */
+html[data-bb-dark] [class*="stream"] button:hover:not(:has(button)),
+html[data-bb-dark] [class*="activity"] button:hover:not(:has(button)) {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-heading) !important;
+  border-color: var(--border-interactive) !important;
 }
 
 /* ─── 20. PROFILE PAGE — info cards & form rows ──────────────────────────
@@ -1151,7 +1401,7 @@ html[data-bb-dark] bb-activity-stream > *:hover,
 html[data-bb-dark] bb-stream > *:hover,
 html[data-bb-dark] [class*="activity-stream"] > *:hover,
 html[data-bb-dark] [class*="ActivityStream"] > *:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* Filter dropdown — dark, no border glow */
@@ -1179,14 +1429,18 @@ html[data-bb-dark] [role="option"]:hover {
    No grey anywhere, ever. This block overrides every hover/focus/active
    state across the entire domain with dark theme equivalents.            */
 
-/* Table rows — gradebook, announcements, any data table */
+/* Table rows — gradebook, announcements, any data table.
+   --bg-hover rather than --bg-tertiary: the striping above occupies the grey
+   step just past a card, so a grey hover was invisible on every alternate row.
+   The maroon cast also makes "the pointer is here" read differently from
+   "this row is striped", which two greys never could. */
 html[data-bb-dark] tr:hover,
 html[data-bb-dark] tr:hover td,
 html[data-bb-dark] tr:hover th,
 html[data-bb-dark] [role="row"]:hover,
 html[data-bb-dark] [role="row"]:hover [role="cell"],
 html[data-bb-dark] [role="row"]:hover [role="gridcell"] {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
   color: var(--text-main) !important;
 }
 
@@ -1197,7 +1451,7 @@ html[data-bb-dark] [class*="gradebook"] [role="row"]:hover,
 html[data-bb-dark] [class*="Gradebook"] [role="row"]:hover,
 html[data-bb-dark] bb-grades-student [role="row"]:hover,
 html[data-bb-dark] bb-grade-detail [role="row"]:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* Hover for things that are actually clickable.
@@ -1209,28 +1463,54 @@ html[data-bb-dark] bb-grade-detail [role="row"]:hover {
    between them match every button, so `button` here was already dead.
 
    A bare `li` matched every bullet in course content, so a list item now needs
-   to show some sign of being interactive. */
+   to show some sign of being interactive.
+
+   `[tabindex]:not([tabindex="-1"])` is gone entirely. Blackboard puts
+   `tabindex="0"` on scroll regions, so it matched wrappers the size of a
+   page column.
+
+   The remaining substring selectors each carry a `:not(:has(...))` guard so
+   only the innermost match paints. That guard is the important part of this
+   block, because of how section 3 interacts with it: `*` there carries
+   `background-color: inherit !important`, which leaves a descendant with no
+   background of its own to fall back to, so a fill landing on a container
+   floods its entire subtree. Measured on a bare
+   `<div class="message-Row" tabindex="0">` — container, child, grandchild and
+   sibling all resolved to the hover fill. A class name like
+   "message-Rows-container" wrapping the rows was enough to wash a whole page
+   region. It went unnoticed for as long as it did because the old grey hover
+   sat at 1.09:1 against the card beneath it and the flood was invisible.
+
+   `:not()` takes the specificity of its argument, so each guard adds (0,1,0)
+   and lifts these selectors from (0,2,1) to (0,3,1). Nothing below relied on
+   tying with them. */
 html[data-bb-dark] li:has(> a):hover,
 html[data-bb-dark] li[role]:hover,
-html[data-bb-dark] [tabindex]:not([tabindex="-1"]):hover,
 html[data-bb-dark] [onclick]:hover,
-html[data-bb-dark] [class*="clickable"]:hover,
-html[data-bb-dark] [class*="Clickable"]:hover,
-html[data-bb-dark] [class*="hoverable"]:hover,
-html[data-bb-dark] [class*="Hoverable"]:hover,
-html[data-bb-dark] [class*="interactive"]:hover,
-html[data-bb-dark] [class*="Interactive"]:hover,
-html[data-bb-dark] [class*="selectable"]:hover,
-html[data-bb-dark] [class*="Selectable"]:hover,
-html[data-bb-dark] [class*="listItem"]:hover,
-html[data-bb-dark] [class*="list-item"]:hover,
-html[data-bb-dark] [class*="ListItem"]:hover,
+html[data-bb-dark] [class*="clickable"]:hover:not(:has([class*="clickable"])),
+html[data-bb-dark] [class*="Clickable"]:hover:not(:has([class*="Clickable"])),
+html[data-bb-dark] [class*="hoverable"]:hover:not(:has([class*="hoverable"])),
+html[data-bb-dark] [class*="Hoverable"]:hover:not(:has([class*="Hoverable"])),
+html[data-bb-dark] [class*="interactive"]:hover:not(:has([class*="interactive"])),
+html[data-bb-dark] [class*="Interactive"]:hover:not(:has([class*="Interactive"])),
+html[data-bb-dark] [class*="selectable"]:hover:not(:has([class*="selectable"])),
+html[data-bb-dark] [class*="Selectable"]:hover:not(:has([class*="Selectable"])),
+html[data-bb-dark] [class*="listItem"]:hover:not(:has(:is([class*="listItem"], [class*="list-item"], [class*="ListItem"], li))),
+html[data-bb-dark] [class*="list-item"]:hover:not(:has(:is([class*="listItem"], [class*="list-item"], [class*="ListItem"], li))),
+html[data-bb-dark] [class*="ListItem"]:hover:not(:has(:is([class*="listItem"], [class*="list-item"], [class*="ListItem"], li))),
 /* Not [class*="row"]: it also matches arrow, narrow, grow, browser, throw,
-   borrow and rowspan. [role="row"] is handled by its own rule above. */
-html[data-bb-dark] [class*="-row"]:hover,
-html[data-bb-dark] [class*="_row"]:hover,
-html[data-bb-dark] [class*="Row"]:hover {
-  background-color: var(--bg-tertiary) !important;
+   borrow and rowspan. [role="row"] is handled by its own rule above.
+
+   Each guard tests the whole row family, not just its own spelling. CSS
+   attribute matching is case-sensitive, so a `:not(:has([class*="Row"]))`
+   guard did not see a child called `message-row` — and a wrapper named
+   `message-Rows-container` holding lowercase rows sailed straight through it
+   and flooded anyway. Mixed casing between a container and its children is
+   the normal case in Blackboard's markup, not an edge one. */
+html[data-bb-dark] [class*="-row"]:hover:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))),
+html[data-bb-dark] [class*="_row"]:hover:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))),
+html[data-bb-dark] [class*="Row"]:hover:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))) {
+  background-color: var(--bg-hover) !important;
   color: var(--text-main) !important;
 }
 
@@ -1376,7 +1656,7 @@ html[data-bb-dark] [class*="announcement-row"]:hover,
 html[data-bb-dark] [class*="AnnouncementRow"]:hover,
 html[data-bb-dark] bb-announcements li:hover,
 html[data-bb-dark] bb-announcements [role="row"]:hover {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-hover) !important;
 }
 
 /* ─── 26. GLOBAL SWEEP — every web component host element ────────────────
@@ -1544,4 +1824,40 @@ html[data-bb-dark] body progress::-webkit-progress-bar {
 
 html[data-bb-dark] body progress::-webkit-progress-value {
   background-color: var(--accent-primary) !important;
+}
+
+/* ─── 29. DISABLED CONTROLS ──────────────────────────────────────────────
+   Nothing distinguished a disabled control before: a disabled button kept the
+   transparent fill, the --text-main colour and the live --border-interactive
+   outline of a working one, so there was no way to see what was clickable.
+   1.4.3 exempts disabled controls from the contrast minimum, which is what
+   lets --text-disabled recede this far.
+
+   Specificity: these land on (0,2,2), the same as the button rules in section
+   8 and the state colours in section 28, all of which would otherwise win on
+   source order — a disabled button took section 8's --text-main, and one whose
+   class happened to contain "complete" took section 28's green. Sitting last
+   in the file is what resolves those ties, the same reason section 28 sits
+   where it does. Anything added below this point must not tie with it.        */
+
+html[data-bb-dark] body :disabled,
+html[data-bb-dark] body [aria-disabled="true"],
+html[data-bb-dark] body [class*="disabled"],
+html[data-bb-dark] body [class*="Disabled"] {
+  color: var(--text-disabled) !important;
+  cursor: not-allowed !important;
+}
+
+/* The inert fill is scoped to real controls. Applied to the broad list above
+   it would also repaint any container that merely has "disabled" in a class
+   name, which on a substring match is not a safe assumption. */
+html[data-bb-dark] body button:disabled,
+html[data-bb-dark] body input:disabled,
+html[data-bb-dark] body select:disabled,
+html[data-bb-dark] body textarea:disabled,
+html[data-bb-dark] body button[aria-disabled="true"],
+html[data-bb-dark] body [role="button"][aria-disabled="true"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: none !important;
 }

@@ -135,10 +135,66 @@ function resolveRoots(pending) {
 // on the host element rather than an inline style. The only thing that beats
 // it is an inline !important of our own.
 
-const DARK_BG = '#0a0a0c';
-// A color is "light" if the sum of its RGB channels exceeds this value
-// and it isn't a near-black shade.
-const LIGHT_THRESHOLD = 180;
+// Every surface the stylesheet paints, resolved from the stylesheet rather
+// than spelled again here so the two cannot drift apart.
+const THEME_SURFACE_TOKENS = [
+  '--bg-primary',
+  '--bg-sidebar',
+  '--bg-secondary',
+  '--bg-row-alt',
+  '--bg-tertiary',
+  '--bg-raised',
+  '--bg-hover',
+];
+
+const CANVAS_FALLBACK = '#0a0a0c';
+
+// CSSOM re-serializes colors, so a hex written here comes back out of a
+// computed style as "rgb(10, 10, 12)". Both spellings are resolved through a
+// throwaway element so the comparisons below stay correct without hardcoding a
+// second spelling of anything.
+let _theme = null;
+function theme() {
+  if (_theme === null) {
+    const probe = document.createElement('div');
+    const serialize = (value) => {
+      probe.style.backgroundColor = '';
+      probe.style.backgroundColor = value;
+      return probe.style.backgroundColor;
+    };
+
+    const root = getComputedStyle(document.documentElement);
+    const read = (token) => root.getPropertyValue(token).trim();
+
+    const canvas = read('--bg-primary') || CANVAS_FALLBACK;
+    _theme = {
+      canvas,
+      canvasSerialized: serialize(canvas),
+      // Anything already painted one of our own surfaces is left alone, which
+      // is what keeps the killer from fighting the stylesheet. Without this the
+      // only thing separating a themed dialog from a Blackboard light panel is
+      // the brightness threshold below, and --bg-raised sums to 180 against a
+      // previous threshold of exactly 180 — a one-unit margin.
+      surfaces: new Set(
+        THEME_SURFACE_TOKENS
+          .map(read)
+          .filter(Boolean)
+          .map(serialize)
+      ),
+    };
+  }
+  return _theme;
+}
+
+function darkBg() {
+  return theme().canvas;
+}
+
+// A color is "light" if the sum of its RGB channels exceeds this value and it
+// isn't a near-black shade. With the palette excluded outright above, this only
+// has to separate light from dark rather than also clearing our own surfaces,
+// so it stays low enough to catch a mid grey: 250 reaches down to #545454.
+const LIGHT_THRESHOLD = 250;
 
 const STREAM_SELECTORS = [
   'li.stream-item-container',
@@ -168,24 +224,11 @@ const STREAM_OBSERVER_CONFIG = {
   attributeFilter: ['class', 'style'],
 };
 
-// CSSOM re-serializes colors, so the hex we set back reads as "rgb(10, 10, 12)".
-// Resolving it through a throwaway element keeps the comparison correct without
-// hardcoding a second spelling of DARK_BG that could drift from the first.
-let _darkBgSerialized = null;
-function darkBgSerialized() {
-  if (_darkBgSerialized === null) {
-    const probe = document.createElement('div');
-    probe.style.backgroundColor = DARK_BG;
-    _darkBgSerialized = probe.style.backgroundColor;
-  }
-  return _darkBgSerialized;
-}
-
 function enforceStreamDark(roots) {
   if (!_darkEnabled || !document.body) return;
 
   const scopes = (roots && roots.length) ? roots : [document.body];
-  const alreadyDark = darkBgSerialized();
+  const { canvasSerialized, surfaces } = theme();
 
   for (const scope of scopes) {
     const candidates = [];
@@ -195,9 +238,14 @@ function enforceStreamDark(roots) {
     for (const el of candidates) {
       // Cheaper than getComputedStyle, and reading the inline value rather than
       // the marker means this self-heals if Blackboard replaces the attribute.
-      if (el.style.getPropertyValue('background-color') === alreadyDark) continue;
+      if (el.style.getPropertyValue('background-color') === canvasSerialized) continue;
 
       const computed = window.getComputedStyle(el);
+
+      // A surface the stylesheet painted is already correct; repainting it
+      // with the canvas would flatten the elevation the theme just built.
+      if (surfaces.has(computed.backgroundColor)) continue;
+
       const m = computed.backgroundColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
       if (!m) continue;
 
@@ -207,9 +255,9 @@ function enforceStreamDark(roots) {
       const hasGradient = bgImage && bgImage !== 'none' && bgImage.includes('gradient');
 
       if (isLight || hasGradient) {
-        el.style.setProperty('background', DARK_BG, 'important');
+        el.style.setProperty('background', darkBg(), 'important');
         el.style.setProperty('background-image', 'none', 'important');
-        el.style.setProperty('background-color', DARK_BG, 'important');
+        el.style.setProperty('background-color', darkBg(), 'important');
         el.setAttribute(MARK, '');
       }
     }

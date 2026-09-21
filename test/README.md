@@ -312,9 +312,20 @@ __probe('cell-partial')   // { hostTag, hostDisplay, pillTag, status, ... }
 | Block host | keeps `display: block`, carries no attribute itself |
 | The pill | a wrapper `span` rendering `inline-flex` |
 | `Not graded` | untouched |
+| `<span>8</span> / <span>10</span>` | stamped; no single text node holds the value |
+| The same split one level deeper | stamped |
+| A split value inside an inline host | pill applied to the host directly |
 
-Run it against the previous implementation with `?impl=` to see the failure it
-was written for: zero stamped, zero pills.
+Run it against an earlier implementation with `?impl=` to see the failures it
+was written for. Against the version before the container gate was dropped it
+reports zero stamped and zero pills. Against the version after that, the three
+split-value rows are the ones left unstamped.
+
+The split rows matter most. Reading whole elements with `textContent` was what
+made the published 1.1.1 handle them, and switching to a text-node walk for
+speed silently dropped that ability. The walk is still what runs first; an
+ancestor's combined text is only read when a node looks like a fragment of a
+number, which keeps the quadratic cost from coming back.
 
 ## A note on fixture HTML caching
 

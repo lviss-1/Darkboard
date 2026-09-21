@@ -53,6 +53,26 @@
         <div role="cell">Exam 1</div>
         <div role="cell" class="jss3310" id="cell-ungraded">Not graded</div>
       </div>
+
+      <!-- Split across elements. No single text node holds "8 / 10", which is
+           the shape the text walk could not see and the published 1.1.1 could,
+           because it read textContent on whole elements. -->
+      <div role="row">
+        <div role="cell">Quiz 3</div>
+        <div role="cell" class="jss3310" id="cell-split"><span>8</span> / <span>10</span></div>
+      </div>
+
+      <!-- Split and nested a level deeper. -->
+      <div role="row">
+        <div role="cell">Quiz 4</div>
+        <div role="cell" class="jss3310" id="cell-split-deep"><span><b>9.5</b></span> / <span>10</span></div>
+      </div>
+
+      <!-- Split inside an inline host, which takes the pill directly. -->
+      <div role="row">
+        <div role="cell">Quiz 5</div>
+        <div role="cell"><span id="span-split"><span>6</span> / <span>10</span></span></div>
+      </div>
     </div>
 
     <span id="current-grade">80%</span>

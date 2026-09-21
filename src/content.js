@@ -305,34 +305,48 @@ function looksLikeDate(text, earned, total) {
   return earned >= 1 && earned <= 12 && total >= 1 && total <= 31;
 }
 
-function considerGradeText(node) {
-  const el = node.parentElement;
-  if (!el || el.dataset.gradeStatus) return;
-  if (SKIP_HOSTS.has(el.tagName)) return;
+// A value split across elements, such as <span>7.5</span> / <span>10</span>,
+// never appears whole in any single text node. Reading the combined text of an
+// ancestor recovers it, but doing that for every element is the quadratic cost
+// the text walk was introduced to avoid. Escalation is therefore gated on the
+// node looking like a piece of a number, which is rare, and on the ancestor
+// holding only a handful of children.
+const NUMERIC_FRAGMENT = /^[\d.,\s\/%]+$/;
+const MAX_FRAGMENT_LENGTH = 8;
+const MAX_SPLIT_CHILDREN = 4;
+const MAX_ESCALATION = 3;
 
-  const text = node.data.replace(/\s+/g, ' ').trim();
-  if (!text) return;
+function gradeStatusFor(el, text) {
+  if (!text) return null;
+  if (DATE_WORDS.test(text) || COUNTER_WORDS.test(text) || PROGRESS_WORDS.test(text)) return null;
+  if (el.closest('h1, h2, h3, h4, h5, h6')) return null;
 
-  if (DATE_WORDS.test(text) || COUNTER_WORDS.test(text) || PROGRESS_WORDS.test(text)) return;
-  if (el.closest('h1, h2, h3, h4, h5, h6')) return;
-
-  let pct = null;
   const fractional = text.match(FRACTION);
+  let pct;
 
   if (fractional) {
     const earned = parseFloat(fractional[1]);
     const total = parseFloat(fractional[2]);
-    if (total <= 0) return;
-    if (!inGradebookContext(el) && looksLikeDate(text, earned, total)) return;
+    if (total <= 0) return null;
+    if (!inGradebookContext(el) && looksLikeDate(text, earned, total)) return null;
     pct = (earned / total) * 100;
   } else {
     const percentage = text.match(PERCENTAGE);
-    if (!percentage) return;
+    if (!percentage) return null;
     pct = parseFloat(percentage[1]);
   }
 
-  const status = pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
+  return pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
+}
 
+// A block host carries no mark of its own, so the wrapper is what says "done".
+function alreadyPilled(el) {
+  if (el.dataset.gradeStatus) return true;
+  const first = el.firstElementChild;
+  return !!first && first.classList.contains('darkboard-pill');
+}
+
+function stampGrade(el, status, node) {
   if (INLINE_HOSTS.has(el.tagName)) {
     el.dataset.gradeStatus = status;
     el.classList.add('darkboard-pill');
@@ -345,8 +359,50 @@ function considerGradeText(node) {
   const pill = document.createElement('span');
   pill.className = 'darkboard-pill';
   pill.dataset.gradeStatus = status;
-  node.replaceWith(pill);
-  pill.appendChild(node);
+
+  if (node) {
+    node.replaceWith(pill);
+    pill.appendChild(node);
+    return;
+  }
+
+  while (el.firstChild) pill.appendChild(el.firstChild);
+  el.appendChild(pill);
+}
+
+function considerGradeText(node) {
+  const el = node.parentElement;
+  if (!el || SKIP_HOSTS.has(el.tagName)) return;
+
+  const text = node.data.replace(/\s+/g, ' ').trim();
+  if (!text) return;
+
+  if (!alreadyPilled(el)) {
+    const status = gradeStatusFor(el, text);
+    if (status) {
+      stampGrade(el, status, node);
+      return;
+    }
+  }
+
+  if (text.length > MAX_FRAGMENT_LENGTH || !NUMERIC_FRAGMENT.test(text)) return;
+
+  let ancestor = el.parentElement;
+  for (let depth = 0; depth < MAX_ESCALATION && ancestor; depth++) {
+    if (SKIP_HOSTS.has(ancestor.tagName)) return;
+    if (ancestor.childElementCount > MAX_SPLIT_CHILDREN) return;
+
+    if (!alreadyPilled(ancestor)) {
+      const combined = ancestor.textContent.replace(/\s+/g, ' ').trim();
+      const status = gradeStatusFor(ancestor, combined);
+      if (status) {
+        stampGrade(ancestor, status, null);
+        return;
+      }
+    }
+
+    ancestor = ancestor.parentElement;
+  }
 }
 
 // Walking text nodes instead of elements is what makes this linear: reading

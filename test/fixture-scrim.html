@@ -91,6 +91,38 @@
     </div>
   </div>
 
+  <!-- The reported shape: a scrim that WRAPS its modal, so it carries the
+       dialog's text. Judged by shape this reads as a layer host and clears,
+       which is exactly why the dim never appeared on the live site. Judged by
+       modality it is a scrim and must dim. -->
+  <div class="scrim is-open bb-modal-shade" id="wrapping-scrim">
+    <div class="dialog" role="dialog" aria-modal="true" id="wrapped-dialog">
+      <h2>Wrapped</h2>
+      <p>A dialog rendered inside its own scrim.</p>
+    </div>
+  </div>
+
+  <!-- A scrim that lets clicks through while its modal is open: interaction is
+       trapped on the dialog instead. pointer-events alone would read this as
+       closed. It is not. -->
+  <div id="click-through-portal">
+    <div class="scrim is-closed passthrough-shade" id="passthrough-scrim"></div>
+    <div class="dialog" role="alertdialog" id="passthrough-dialog">
+      <p>Interaction is trapped here, not on the scrim.</p>
+    </div>
+  </div>
+
+  <!-- Nested: a scrim inside a layer host, both full-viewport, both serving the
+       same modal. Exactly ONE may paint — two 0.65 washes composite to 0.88 and
+       put us most of the way back to the black screen. -->
+  <div class="scrim is-open ms-Layer nested-outer" id="nested-outer">
+    <div class="scrim is-open nested-inner" id="nested-inner">
+      <div class="dialog" role="dialog" aria-modal="true" id="nested-dialog">
+        <p>Nested</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const initialEnabled = !new URLSearchParams(location.search).has('off');
@@ -127,6 +159,7 @@
           opaque: !!bg && bg.a > 0.99,
           mark: el.getAttribute('data-darkboard-scrim'),
           inline: el.style.getPropertyValue('background-color'),
+          blur: cs.backdropFilter,
         };
       };
       window.__state = state;
@@ -156,9 +189,6 @@
         if (!open.painting) {
           failures.push('open scrim is not dimming at all: ' + open.bg);
         }
-        if (open.alpha !== null && (open.alpha < 0.3 || open.alpha > 0.6)) {
-          failures.push('open scrim alpha is ' + open.alpha + ', expected ~0.45');
-        }
         if (open.mark !== 'dim') {
           failures.push('open scrim mark is ' + open.mark + ', expected "dim"');
         }
@@ -187,6 +217,50 @@
           failures.push('layer host mark is ' + layer.mark + ', expected "clear"');
         }
 
+        // The reported bug: a scrim that wraps its own modal carries the
+        // dialog's text, reads as a layer host, and never dims.
+        const wrapping = state('wrapping-scrim');
+        if (wrapping.mark !== 'dim') {
+          failures.push('wrapping scrim mark is ' + wrapping.mark + ', expected "dim"');
+        }
+
+        // pointer-events: none must not read as "closed" while its modal is up.
+        const passthrough = state('passthrough-scrim');
+        if (passthrough.mark !== 'dim') {
+          failures.push('click-through scrim mark is ' + passthrough.mark + ', expected "dim"');
+        }
+
+        // Exactly one of a nested pair may paint.
+        const outer = state('nested-outer');
+        const inner = state('nested-inner');
+        if (inner.mark !== 'dim') {
+          failures.push('nested inner mark is ' + inner.mark + ', expected "dim" (innermost wins)');
+        }
+        if (outer.painting) {
+          failures.push('nested outer is also painting ' + outer.bg + ' — two washes stack');
+        }
+
+        // Every dim carries the blur; every clear carries none. The blur is the
+        // only lever that recovers what a dark canvas cannot do with luminance,
+        // and blurring an INACTIVE scrim is the original section 10 bug.
+        for (const [id, st] of Object.entries({ 'open-scrim': open, 'wrapping-scrim': wrapping,
+                                                'passthrough-scrim': passthrough, 'nested-inner': inner })) {
+          if (!/blur/.test(st.blur || '')) failures.push(id + ' is dimmed but not blurred: ' + st.blur);
+        }
+        for (const [id, st] of Object.entries({ 'closed-scrim': closed, 'layer-host': state('layer-host'),
+                                                'nested-outer': outer })) {
+          if (/blur/.test(st.blur || '')) failures.push(id + ' is cleared but still blurring: ' + st.blur);
+        }
+
+        // The dim itself, now 0.65. Asserted as a range so retuning does not
+        // mean rewriting the test, but tight enough to catch a stacked wash.
+        for (const [id, st] of Object.entries({ 'open-scrim': open, 'wrapping-scrim': wrapping,
+                                                'nested-inner': inner })) {
+          if (st.alpha !== null && (st.alpha < 0.55 || st.alpha > 0.75)) {
+            failures.push(id + ' alpha is ' + st.alpha + ', expected ~0.65');
+          }
+        }
+
         // And the page behind has to still be readable.
         const heading = getComputedStyle(__restyleTree(document.getElementById('heading')));
         if (__contrast(heading.color, '#0a0a0c') < 4.5) {
@@ -202,9 +276,12 @@
         const failures = [];
         const marks = document.querySelectorAll('[data-darkboard-scrim]').length;
         if (marks) failures.push(marks + ' scrim marks survived the toggle off');
-        for (const id of ['closed-scrim', 'open-scrim']) {
-          const inline = document.getElementById(id).style.getPropertyValue('background-color');
+        for (const id of ['closed-scrim', 'open-scrim', 'wrapping-scrim', 'nested-inner']) {
+          const el = document.getElementById(id);
+          const inline = el.style.getPropertyValue('background-color');
           if (inline) failures.push(id + ' kept an inline background: ' + inline);
+          const bf = el.style.getPropertyValue('backdrop-filter');
+          if (bf) failures.push(id + ' kept an inline backdrop-filter: ' + bf);
         }
         return { failures };
       };

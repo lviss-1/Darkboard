@@ -443,9 +443,31 @@ const DIALOG_SELECTORS = '[role="dialog"],[role="alertdialog"],[aria-modal="true
 // pass has nothing to get wrong until a real overlay appears.
 const SCRIM_COVERAGE = 0.85;
 
-// Confirmed by the user over full transparency and over the old 65%: the page
-// behind stays readable but is clearly pushed back.
-const SCRIM_DIM = 'rgba(0, 0, 0, 0.45)';
+// Light mode's own scrim measures 45% black — sampled from a screenshot of
+// this exact dialog, where Blackboard's white page renders at (139, 139, 139).
+// This goes further than that on purpose: 45% over white removes 116 levels of
+// brightness, while 45% over our near-black canvas removes four. At 0.65 the
+// text behind drops from 232 to 81, which is the part of the effect a dark
+// canvas can still deliver.
+const SCRIM_DIM = 'rgba(0, 0, 0, 0.65)';
+
+// Darkening alone cannot reach light mode's separation, and it is worth being
+// precise about why rather than tuning the alpha forever. Dialog against the
+// backdrop behind it: light mode measures 3.41:1; dark mode reaches 1.75:1 at
+// 0.45, 1.77:1 at 0.65, and 1.82:1 at FULLY OPAQUE BLACK. The canvas is already
+// near black, so there is no luminance headroom left to spend.
+//
+// Blur is the lever that does not depend on that headroom. It is applied only
+// to a scrim confirmed active — section 10's original sin was blurring closed
+// ones, which is what made the black screen read as soft blobs rather than
+// flat black.
+const SCRIM_BLUR = 'blur(3px)';
+
+// An open modal, as opposed to a menu or a popup. This is the signal that
+// decides whether a full-viewport element is a scrim, because modality is what
+// a scrim actually expresses. `dialog` needs [open] here: a closed <dialog> is
+// still in the DOM and still matches DIALOG_SELECTORS.
+const MODAL_SELECTORS = '[role="dialog"],[role="alertdialog"],[aria-modal="true"],dialog[open]';
 
 function scrimCandidates() {
   const found = new Set();
@@ -471,13 +493,32 @@ function scrimCandidates() {
 
 // Whether an element shares a parent with an open dialog — the portal pattern
 // where the scrim and the dialog are rendered side by side.
-function besideDialog(el) {
+function besideDialog(el, selector) {
   const parent = el.parentElement;
   if (!parent) return false;
   for (const sibling of parent.children) {
-    if (sibling !== el && sibling.matches(DIALOG_SELECTORS)) return true;
+    if (sibling !== el && sibling.matches(selector || DIALOG_SELECTORS)) return true;
   }
   return false;
+}
+
+// Whether this element is serving one of the open modals: it either wraps the
+// modal or sits beside it. Either way it is the sheet between that modal and
+// the page, which is the definition of a scrim.
+function servesModal(el, modals) {
+  if (modals.length === 0) return false;
+  if (besideDialog(el, MODAL_SELECTORS)) return true;
+  for (const modal of modals) {
+    if (el.contains(modal)) return true;
+  }
+  return false;
+}
+
+// Depth from <html>, used to settle overlapping candidates innermost-first.
+function depthOf(el) {
+  let n = 0;
+  for (let p = el.parentElement; p; p = p.parentElement) n++;
+  return n;
 }
 
 function reconcileScrims() {
@@ -487,7 +528,20 @@ function reconcileScrims() {
   const vh = window.innerHeight;
   if (!vw || !vh) return;
 
-  for (const el of scrimCandidates()) {
+  const modals = document.querySelectorAll(MODAL_SELECTORS);
+
+  // Deepest first, so that when several nested elements all qualify, the one
+  // closest to the modal claims the dim and its ancestors are cleared behind
+  // it. Two stacked 0.65 washes composite to 0.88 and put us most of the way
+  // back to the black screen, so exactly one element may paint.
+  const candidates = [...scrimCandidates()].sort((a, b) => depthOf(b) - depthOf(a));
+
+  // A list rather than one element: two unrelated modals can be open at once,
+  // and each is entitled to its own wash. Only an ANCESTOR of something already
+  // dimmed has to stand down.
+  const dimmed = [];
+
+  for (const el of candidates) {
     if (!el.isConnected) continue;
 
     // The dialog is what the scrim sits behind. Clearing its background would
@@ -500,16 +554,21 @@ function reconcileScrims() {
     const rect = el.getBoundingClientRect();
     if (rect.width < vw * SCRIM_COVERAGE || rect.height < vh * SCRIM_COVERAGE) continue;
 
-    // Two different things reach this point, and they want opposite treatment.
-    //
+    // Modality is what decides. An element on an open modal's path IS that
+    // modal's scrim, whatever it is called, whatever text it carries and
+    // whatever it does with pointer-events — and judging it by shape instead
+    // is why the dim never appeared: a scrim that wraps its dialog carries the
+    // dialog's text, was read as a layer host, and was cleared.
+    const serves = servesModal(el, modals);
+
     // A bare scrim is empty: it exists only to put a wash over the page.
     // A layer HOST carries the overlay's own content. Fluent UI's ms-Layer is
     // the shape, and it is not hypothetical — Blackboard portals its menus and
     // dialogs into one, as a direct child of body, fixed, full-viewport, and
-    // currently painted opaque rgb(10, 10, 12) by this theme. It is hidden
-    // while closed, so it does no harm until it opens; when it opens it covers
-    // the page. That is the reported bug.
-    const host = (el.textContent || '').trim() !== '';
+    // painted opaque rgb(10, 10, 12) by this theme until this pass clears it.
+    // A host holding a MENU still clears: a context menu has no business
+    // dimming the page behind it. A host holding a MODAL does not.
+    const host = !serves && (el.textContent || '').trim() !== '';
 
     // An `absolute` full-viewport element carrying content is a layout
     // container — an app shell root that happens to be positioned — and
@@ -518,25 +577,39 @@ function reconcileScrims() {
     // portal is.
     if (host && computed.position !== 'fixed' && !besideDialog(el)) continue;
 
+    // An app shell wrapping the whole page is an ancestor of anything rendered
+    // inside it, including a modal, so `serves` alone would hand it the dim.
+    // A scrim is a layer over the page, not the page's own container.
+    if (serves && computed.position !== 'fixed' && !besideDialog(el, MODAL_SELECTORS)) continue;
+
     // These four properties are safe to read because the stylesheet never
     // touches pointer-events or visibility on a real element, and sets opacity
     // and display only on ::before/::after pseudo-elements. Verified against
     // the live page before this was written; if that ever changes, this pass
     // starts guessing.
+    //
+    // pointer-events is the one term modality overrides. Some modals let clicks
+    // through the scrim and trap interaction on the dialog instead, and reading
+    // that as "closed" is the second way the dim could go missing. The rest are
+    // not overridden: visibility, display and opacity mean the thing genuinely
+    // is not on screen, and honouring them is what keeps a mounted-but-closed
+    // backdrop from painting — the bug 4befd52 fixed.
     const inert = computed.visibility === 'hidden'
       || computed.display === 'none'
       || parseFloat(computed.opacity) <= 0.01
-      || computed.pointerEvents === 'none'
-      || el.getAttribute('aria-hidden') === 'true';
+      || (!serves && computed.pointerEvents === 'none')
+      || (!serves && el.getAttribute('aria-hidden') === 'true');
 
-    // An inert scrim paints nothing; an active one dims. A host never paints
-    // either way — the panel inside it draws its own surface, and dimming here
-    // would double up with the dim its own scrim child is already applying.
+    // An inert scrim paints nothing; an active one dims. A host paints nothing
+    // either — the panel inside draws its own surface. And once something has
+    // dimmed, everything wrapped around it clears, so the wash is applied once.
     //
     // Note which way the uncertain cases fall: something we wrongly call inert
     // costs a dim, and something we wrongly call active costs the whole page.
     // Every signal above is a reason to paint less.
-    const want = (host || inert) ? 'clear' : 'dim';
+    const covered = dimmed.some((inner) => el.contains(inner));
+    const want = (host || inert || covered) ? 'clear' : 'dim';
+    if (want === 'dim') dimmed.push(el);
 
     // The mark records the decision; the priority check confirms our own
     // declaration is still on the element, so this self-heals if Blackboard
@@ -550,9 +623,10 @@ function reconcileScrims() {
     // confirmed live, where both 'transparent' and the dim survive the whole
     // stylesheet. Reordering rules in a 2,200-line cascade is how this file
     // grew its last three bugs.
-    el.style.setProperty('background-color', want === 'clear' ? 'transparent' : SCRIM_DIM, 'important');
+    const clear = want === 'clear';
+    el.style.setProperty('background-color', clear ? 'transparent' : SCRIM_DIM, 'important');
     el.style.setProperty('background-image', 'none', 'important');
-    el.style.setProperty('backdrop-filter', 'none', 'important');
+    el.style.setProperty('backdrop-filter', clear ? 'none' : SCRIM_BLUR, 'important');
     el.setAttribute(SCRIM_MARK, want);
   }
 }

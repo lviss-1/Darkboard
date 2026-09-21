@@ -748,9 +748,12 @@ candidates; they are no longer used to decide about them.
 
 | Element | Shape | Expected |
 |---|---|---|
-| `#closed-scrim` | fixed, full-viewport, empty, `pointer-events: none` | paints nothing |
-| `#open-scrim` | fixed, full-viewport, empty, beside a dialog | dims to `rgba(0, 0, 0, 0.45)` |
-| `#layer-host` | fixed, full-viewport, **carries content** | paints nothing |
+| `#closed-scrim` | fixed, full-viewport, empty, `pointer-events: none`, no modal | paints nothing |
+| `#open-scrim` | fixed, full-viewport, empty, beside a dialog | dims + blurs |
+| `#wrapping-scrim` | fixed, full-viewport, **wraps its own modal** | dims + blurs |
+| `#passthrough-scrim` | `pointer-events: none` **while its modal is open** | dims + blurs |
+| `#nested-outer` / `#nested-inner` | two full-viewport scrims, same modal | **exactly one** dims |
+| `#layer-host` | fixed, full-viewport, carries a **menu**, no modal | paints nothing |
 | `#dialog` | the dialog itself | keeps its opaque `--bg-raised` |
 | `#app-root` | **absolute**, full-viewport, carries content | never marked at all |
 
@@ -758,24 +761,74 @@ Against the build before the fix it reports **five failures** and the
 screenshot is a dialog floating on a solid black page — the reported bug,
 reproduced.
 
-### Why a host and a scrim are different
+### Modality decides, not shape
 
-`#layer-host` is not hypothetical. It is Fluent UI's `ms-Layer--fixed`, taken
-from live Blackboard, where menus and dialogs are portalled into one as a
-direct child of `body`. On the real page it measures `rgb(10, 10, 12)`, full
-viewport — hidden only by `visibility` while closed, and covering everything
-the moment it opens.
+The first version of this pass judged a candidate by its shape: an element
+carrying text was a "layer host" and always cleared. That shipped, fixed the
+black screen, and produced a second bug — **the dim never appeared**, because a
+scrim that wraps its own dialog carries the dialog's text and was read as a
+host. Measured from a screenshot of the live page, the canvas behind an open
+modal read `(9, 11, 12)` against a `--bg-primary` of `(10, 10, 12)`: untouched.
 
-It has to end up **transparent, not dimmed**: the panel inside paints its own
-surface, and a dim here would double with the dim its own scrim child applies,
-veiling the page every time a context menu opens. Only a *bare* scrim — one
-with no content of its own — dims.
+So the rule is now modality. An element on an open modal's path **is** that
+modal's scrim, whatever it is called, whatever text it carries, whatever it
+does with `pointer-events`. `#wrapping-scrim` and `#passthrough-scrim` are the
+two ways that went wrong, one per explanation.
 
-The `#app-root` row guards the other direction. A full-viewport `absolute`
-element carrying content is an app shell that happens to be positioned, and
-repainting it would be the same blanket mistake in a new place. A `fixed` one
-is a viewport-level layer by definition, which is what a portal is — so the
-content guard applies only to `absolute`.
+What modality does *not* override is `visibility: hidden`, `display: none` and
+`opacity: 0`. Those mean the element genuinely is not on screen, and honouring
+them is what stops a mounted-but-closed backdrop painting — the bug `4befd52`
+fixed, which must not come back.
+
+`#layer-host` is why the host idea existed and why it survives for menus. It is
+Fluent UI's `ms-Layer--fixed`, taken from live Blackboard, where menus and
+dialogs are portalled into one as a direct child of `body`; on the real page it
+measures `rgb(10, 10, 12)` at full viewport. A context menu has no business
+dimming the page behind it, so a host holding a *menu* still clears. A host
+holding a *modal* does not.
+
+`#nested-outer`/`#nested-inner` guard the other failure mode. Two 0.65 washes
+composite to 0.88, which is most of the way back to a black screen, so
+candidates are sorted deepest-first and an ancestor of something already dimmed
+stands down.
+
+The `#app-root` row guards the last direction. A full-viewport `absolute`
+element carrying content is an app shell that happens to be positioned — and it
+is an ancestor of any modal rendered inside it, so modality alone would hand it
+the dim. A scrim is a layer *over* the page, not the page's own container, so
+both the content guard and the modality path require `fixed` unless the element
+sits directly beside the modal.
+
+### Why the dim is 0.65 and why there is a blur
+
+Light mode's own scrim measures **45% black** — sampled from a screenshot of
+this dialog, where Blackboard's white page renders at `(139, 139, 139)`.
+
+Matching that number does not match the effect. 45% over white removes 116
+levels of brightness; 45% over our near-black canvas removes four. What a dark
+canvas can still deliver is suppressing the content behind, and 0.65 takes text
+from `232` to `81`.
+
+The rest cannot come from darkening at all:
+
+| Dialog vs the backdrop behind it | ratio |
+|---|---|
+| Light mode, measured | **3.41:1** |
+| Dark @ 0.45 | 1.75:1 |
+| Dark @ 0.65 | 1.77:1 |
+| Dark @ **fully opaque black** | **1.82:1** |
+
+There is no luminance headroom left to spend — the canvas is already near
+black. `blur(3px)` is the only lever that does not depend on that headroom,
+which is why it is in the design rather than being decoration. It is applied
+**only to a scrim confirmed active**; section 10's original sin was blurring
+closed ones, which is what made the black screen read as soft blobs rather than
+flat black. The fixture asserts blur on every `dim` and its absence on every
+`clear`.
+
+One fixture artefact worth knowing: it holds four independent modals open at
+once, so its own screenshot stacks four washes and looks far darker than
+anything real. The per-element alpha assertions are the check, not the picture.
 
 ### Which way the uncertain cases fall
 

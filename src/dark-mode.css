@@ -1933,3 +1933,46 @@ html[data-bb-dark] body [class*="MuiDrawer-paper"] {
   border-right: 1px solid var(--border-subtle) !important;
   box-shadow: none !important;
 }
+
+/* ─── 31. BLACKBOARD'S OWN LIGHT-THEME ARTWORK ───────────────────────────
+   Two things the theme never touched because neither is a background-color,
+   which is all the rest of this stylesheet looks for. Both found by reading
+   the live pages rather than the markup.
+
+   The course accent rails. Each card on the grades page carries a 5px
+   ::before whose fill is that course's colour, straight from Blackboard's
+   light palette — rgb(21,122,251), rgb(137,243,219), rgb(202,34,173),
+   rgb(255,225,43). Those are chosen to sit on white, and on a near-black
+   canvas they are the brightest thing on the page by a wide margin.
+
+   They are not noise, though: the colour is how a student tells one course
+   from another at a glance, so it is toned rather than removed. The filter
+   goes on the pseudo-element, which is the whole of the bar, so nothing
+   else on the card is affected. */
+html[data-bb-dark] [class*="course-color-"]::before,
+html[data-bb-dark] [class*="course-color-"]::after {
+  filter: saturate(0.75) brightness(0.72) !important;
+}
+
+/* The hatched placeholder. `base-grades-empty-element` is painted with a
+   45-degree linear-gradient of rgb(240,240,240) and white — Blackboard's
+   "nothing here yet" hatch. The grey panel sits on top of most of it, so
+   what showed was a bright white diagonally-striped bar down each side of
+   every empty grades card. `background-image: none` is not enough on its
+   own, because the element then falls through to the canvas and the inset
+   reads as a gap; it gets the card fill instead. */
+html[data-bb-dark] [class*="base-grades-empty-element"],
+html[data-bb-dark] [class*="grades-empty"],
+html[data-bb-dark] [class*="empty-element"] {
+  background-image: none !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Message rows carry a 0.55px solid rgb(205,205,205) border on all four
+   sides — Blackboard's light-theme hairline, which on this canvas reads as a
+   pale outline around every row. The same `course-color-N` ::before handled
+   above provides their left accent, so only the frame needs correcting. */
+html[data-bb-dark] [class*="messages-container"],
+html[data-bb-dark] [class*="messages-header"] {
+  border-color: var(--border-subtle) !important;
+}

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — peek-panel backdrops</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    // ?css= points at an alternative stylesheet, which is how this gets
+    // compared against the build before the fix.
+    window.__cssReady = new Promise((resolve) => {
+      const alt = new URLSearchParams(location.search).get('css');
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = (alt || '../src/dark-mode.css') + '?cb=' + Date.now();
+      link.onload = () => setTimeout(resolve, 60);
+      link.onerror = () => setTimeout(resolve, 60);
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <style>
+    /* How Blackboard itself sizes a peek backdrop: fixed, covering the
+       viewport, sitting above the page. The CLOSED state is the important
+       one — it stays mounted and is hidden only by being transparent and
+       letting clicks through. Nothing here sets a background, exactly as a
+       closed backdrop does not. */
+    .bb-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+    }
+    .closed { pointer-events: none; }
+
+    /* The OPEN state, as Blackboard paints it in its own light theme: a pale
+       scrim the theme is supposed to darken. */
+    .open { background-color: rgba(255, 255, 255, 0.55); }
+
+    .page { position: relative; z-index: 1; padding: 20px; font: 14px system-ui; }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+    <h1 id="heading">Course content behind the backdrop</h1>
+    <p id="copy">If a closed backdrop is being painted, this is what disappears.</p>
+  </div>
+
+  <!-- One per selector listed in section 10, in the CLOSED state. Each is
+       full-viewport and transparent; none of them should paint anything. -->
+  <div class="bb-backdrop closed bb-offcanvas-overlay"   id="c-offcanvas-overlay"></div>
+  <div class="bb-backdrop closed peek-panel-bg"          id="c-peek-panel-bg"></div>
+  <div class="bb-backdrop closed offcanvas-bg"           id="c-offcanvas-bg"></div>
+  <div class="bb-backdrop closed panel-backdrop"         id="c-panel-backdrop"></div>
+  <div class="bb-backdrop closed drawer-backdrop"        id="c-drawer-backdrop"></div>
+  <div class="bb-backdrop closed dialog-backdrop"        id="c-dialog-backdrop"></div>
+  <div class="bb-backdrop closed close-peek"             id="c-close-peek"></div>
+  <div class="bb-backdrop closed js-peek-background"     id="c-js-peek-background"></div>
+  <div class="bb-backdrop closed Overlay__root"          id="c-Overlay__root"></div>
+  <div class="bb-backdrop closed Backdrop__root"         id="c-Backdrop__root"></div>
+
+  <!-- The same elements in the OPEN state. These SHOULD be dark: the whole
+       point of the section is that Blackboard's pale scrim has no business on
+       a dark page. A fix that kills the false overlay must not kill this. -->
+  <div class="bb-backdrop open bb-offcanvas-overlay" id="o-offcanvas-overlay"></div>
+  <div class="bb-backdrop open close-peek"           id="o-close-peek"></div>
+  <div class="bb-backdrop open Backdrop__root"       id="o-Backdrop__root"></div>
+
+  <script>
+    const CLOSED = ['c-offcanvas-overlay', 'c-peek-panel-bg', 'c-offcanvas-bg',
+      'c-panel-backdrop', 'c-drawer-backdrop', 'c-dialog-backdrop', 'c-close-peek',
+      'c-js-peek-background', 'c-Overlay__root', 'c-Backdrop__root'];
+    const OPEN = ['o-offcanvas-overlay', 'o-close-peek', 'o-Backdrop__root'];
+
+    const parse = (v) => {
+      const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(v || '');
+      return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+    };
+
+    window.__state = function (id) {
+      const el = __restyleTree(document.getElementById(id));
+      const cs = getComputedStyle(el);
+      const bg = parse(cs.backgroundColor);
+      return {
+        bg: cs.backgroundColor,
+        alpha: bg ? bg.a : null,
+        // What actually matters: is this element putting ink on the screen?
+        painting: !!bg && bg.a > 0.01,
+        backdropFilter: cs.backdropFilter,
+        blurring: !!cs.backdropFilter && cs.backdropFilter !== 'none',
+      };
+    };
+
+    window.__probe = function () {
+      const failures = [];
+      const closed = {}, open = {};
+
+      // A mounted-but-closed backdrop must put nothing on the screen. This is
+      // the bug: the theme forces a fill onto it regardless of state, and the
+      // result is a full-viewport dark sheet over a page that is otherwise
+      // perfectly healthy.
+      for (const id of CLOSED) {
+        const s = __state(id);
+        closed[id] = s;
+        if (s.painting) failures.push(`CLOSED ${id} is painting ${s.bg}`);
+        if (s.blurring) failures.push(`CLOSED ${id} is blurring (${s.backdropFilter})`);
+      }
+
+      // An open backdrop must never show Blackboard's pale scrim on a dark
+      // page. It is allowed to paint nothing — that is the trade this fix
+      // makes, and it is the safe direction: a missing dim costs a little
+      // depth, a false one costs the whole page.
+      for (const id of OPEN) {
+        const s = __state(id);
+        open[id] = s;
+        const bg = parse(s.bg);
+        const isPale = s.painting && (bg.r + bg.g + bg.b) / 3 > 90;
+        if (isPale) failures.push(`OPEN ${id} is showing a pale scrim: ${s.bg}`);
+      }
+
+      // And the page behind has to remain readable.
+      const heading = getComputedStyle(__restyleTree(document.getElementById('heading')));
+      const readable = __contrast(heading.color, '#0a0a0c') >= 4.5;
+      if (!readable) failures.push('heading is not readable against the page');
+
+      return { failures, closed, open, headingColor: heading.color };
+    };
+  </script>
+</body>
+</html>

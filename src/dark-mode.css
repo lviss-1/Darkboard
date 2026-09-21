@@ -720,15 +720,49 @@ html[data-bb-dark] [class*="Flyout__"] {
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7) !important;
 }
 
-/* Modal backdrop */
-html[data-bb-dark] [class*="Overlay__"],
-html[data-bb-dark] [class*="Backdrop__"] {
-  background-color: rgba(0, 0, 0, 0.7) !important;
+/* Modal backdrop — same correction, same reason. Section 3 already forces
+   anything named overlay or backdrop to transparent, and this block sat two
+   sections later forcing a subset of those very elements to 70% black. Two
+   rules disagreeing about what an overlay is for is how a closed one ends up
+   painted over the page — and because the universal rule in section 3 carries
+   `background-color: inherit !important`, a full-viewport element that is
+   transparent by design does not stay transparent when we get this wrong. It
+   inherits the dark canvas and becomes an opaque sheet. */
+html[data-bb-dark] body [class*="Overlay__"],
+html[data-bb-dark] body [class*="Backdrop__"] {
+  background-color: transparent !important;
 }
 
 /* ─── BLACKBOARD PEEK PANEL & FLYOUT BACKDROPS (HIGH SPECIFICITY) ─────────
    Forces the backdrop to be dim and semi-transparent. Updated to catch 
    the exact bb-offcanvas-overlay class found in DevTools. */
+/* These paint NOTHING, and that is the fix rather than an oversight.
+
+   They used to force rgba(0, 0, 0, 0.65) and a 2px blur, unconditionally and
+   with !important. Blackboard keeps its peek backdrop mounted when the panel
+   is closed and hides it by being transparent, so the rule painted a
+   full-viewport dark blurred sheet over a page that was otherwise perfectly
+   healthy. Reproduced in test/fixture-overlay.html: ten closed backdrops, all
+   of them painting, and the `Overlay__` / `Backdrop__` cases landing on fully
+   opaque page-black with no blur at all. The screen simply goes dark.
+
+   It never showed up here because none of these selectors match anything on
+   this Blackboard build — checked live across the shell, where the only
+   surviving member of this family is `bb-offcanvas-container`, which none of
+   them names. A rule that does nothing when it is right, and blacks out the
+   page when it is wrong, is not worth keeping.
+
+   Transparent rather than deleted, because deleting is not enough: four of
+   these names carry no "overlay" or "backdrop" substring, so §3's transparent
+   rule does not catch them, and they would fall through to the universal
+   `background-color: inherit` and come out opaque dark anyway.
+
+   The cost is that a genuinely open panel no longer gets a dimmed scrim. That
+   is a real loss and a small one — the panel still sits on a dark page, and on
+   every build we can observe, the scrim was not being drawn regardless.
+   Restoring it safely means deciding per element whether the backdrop is
+   really open, which only the computed style can answer; enforceStreamDark in
+   content.js is the pattern if it ever becomes worth it. */
 html[data-bb-dark] body div.bb-offcanvas-overlay,
 html[data-bb-dark] body div[class*="offcanvas-overlay"],
 html[data-bb-dark] body div[class*="peek-panel-bg"],
@@ -740,9 +774,9 @@ html[data-bb-dark] body div[class*="dialog-backdrop"],
 html[data-bb-dark] body bb-slideout-backdrop,
 html[data-bb-dark] body [class*="close-peek"],
 html[data-bb-dark] body [class*="js-peek-background"] {
-  background-color: rgba(0, 0, 0, 0.65) !important;
-  background: rgba(0, 0, 0, 0.65) !important;
-  backdrop-filter: blur(2px) !important; 
+  background-color: transparent !important;
+  background: transparent !important;
+  backdrop-filter: none !important; 
 }
 
 /* ─── 11. SCROLLBARS (Webkit / Chromium) ────────────────────────────────── */
@@ -1702,7 +1736,19 @@ html[data-bb-dark] bb-announcements [role="row"]:hover {
    defaults to white if no background is set. This targets every bb- and
    ultra- element on the page at once.                                     */
 
-html[data-bb-dark] [class*="bb-"],
+/* The `bb-` sweep skips overlays and backdrops, and that exclusion is the
+   whole ballgame. It forces an OPAQUE page-black fill, and `[class*="bb-"]`
+   matches any class containing those two characters anywhere — which includes
+   Blackboard's own `bb-offcanvas-overlay` and `bb-slideout-backdrop`. A peek
+   backdrop that is mounted but closed, and therefore transparent, was being
+   painted solid black across the whole viewport. Sitting late in the file at
+   the same specificity as the transparent rules meant it beat them on source
+   order, so fixing section 10 alone changed nothing.
+
+   This is the one that blacks out the page. Section 10's own force was the
+   same mistake in a milder form: translucent and blurred rather than opaque,
+   so the page went dark and soft instead of dark and flat. */
+html[data-bb-dark] [class*="bb-"]:not([class*="overlay" i]):not([class*="backdrop" i]):not([class*="peek" i]),
 html[data-bb-dark] bb-base,
 html[data-bb-dark] bb-router-outlet,
 html[data-bb-dark] bb-learn-root,

@@ -666,6 +666,55 @@ through the frame's own `eval` now. `content.js` sees it because content
 scripts share one lexical scope — which is exactly how the manifest loads the
 two files — but nothing outside that scope can.
 
+## fixture-overlay.html
+
+Covers the black screen: every page of Blackboard rendering as a dark sheet
+with no content, on one machine, with the extension on.
+
+It never reproduced on the developer's machine, and checking the live DOM
+explained why — none of the backdrop selectors in section 10 match anything on
+that Blackboard build. The rules were inert there and catastrophic elsewhere.
+
+**Two rules were painting elements that should paint nothing**, and the second
+one is the one that actually blacked out the page:
+
+- Section 10 forced eleven backdrop selectors to `rgba(0, 0, 0, 0.65)` plus a
+  2px blur, with `!important` and no condition on the panel being open.
+  Blackboard keeps its peek backdrop mounted when closed, hidden only by being
+  transparent.
+- Section 26's `[class*="bb-"]` sweep forces an **opaque** page-black fill, and
+  that substring matches Blackboard's own `bb-offcanvas-overlay` and
+  `bb-slideout-backdrop`. Sitting late in the file at equal specificity, it beat
+  the transparent rules on source order — so fixing section 10 alone moved the
+  failure count from 18 to 2 and left the screen just as black.
+
+The fixture models both states of every affected selector. **The closed state
+is the whole point**: mounted, full-viewport, and transparent, which is exactly
+how a closed backdrop hides itself.
+
+| Check | Expected |
+|---|---|
+| Ten closed backdrops | paint nothing, blur nothing |
+| Three open backdrops | never show Blackboard's pale scrim |
+| The heading behind them | still readable against the page |
+
+Against the build before the fix it reports **18 failures**; after, zero. The
+two `Overlay__` / `Backdrop__` cases are worth reading in the pre-fix output —
+they land on fully opaque `rgb(10, 10, 12)` with no blur at all, which is
+precisely "the screen just turns black".
+
+### What the fix gives up
+
+An open panel no longer gets a dimmed scrim behind it. That is a real loss and
+a small one: the panel still sits on a dark page, and on every build we can
+observe, the scrim was not being drawn anyway. Restoring it safely means
+deciding per element whether the backdrop is genuinely open — a question only
+the computed style can answer, which is what `enforceStreamDark` in
+`content.js` already does for stream rows.
+
+The fixture asserts the open state is *not pale* rather than *is dark*, so it
+encodes that trade rather than quietly forbidding it.
+
 ## restyle.js
 
 Forces a genuine style resolution on an element before it is measured, which

@@ -394,12 +394,18 @@ html[data-bb-dark] a * {
    it unaided. Raising the link colour far enough would push it to white and
    lose the accent, so prose links are underlined instead.
 
-   Scoped to prose. Blackboard styles a great many anchors as nav items, tabs
-   and card titles, and underlining those would be noise — section 8 already
-   strips the underline from anchors styled as buttons. */
+   Scoped to running prose, and nothing else. `li > a` was in here and it
+   underlined the entire course tab bar — Content, Calendar, Announcements and
+   the rest are a list of anchors, which is how essentially every nav and tab
+   bar is built, and a class-name guard did not exclude them. `td > a` had the
+   same problem for gradebook item names.
+
+   Only `p` and `dd` remain, because those are the two places Blackboard puts
+   a link inside a sentence. Everywhere else the link is a control, and
+   position identifies it perfectly well without a rule that risks
+   underlining half the chrome. Section 8 already strips the underline from
+   anchors styled as buttons. */
 html[data-bb-dark] p > a,
-html[data-bb-dark] li > a:not([class*="nav"]):not([class*="Nav"]),
-html[data-bb-dark] td > a,
 html[data-bb-dark] dd > a {
   text-decoration: underline !important;
   text-underline-offset: 0.15em !important;

@@ -7,7 +7,7 @@ Dark mode for Blackboard Ultra. One install, zero configuration, zero flash of w
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.1.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.2.0-blue?style=flat-square)
 
 ## The problem
 

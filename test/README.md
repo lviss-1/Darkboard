@@ -830,6 +830,33 @@ One fixture artefact worth knowing: it holds four independent modals open at
 once, so its own screenshot stacks four washes and looks far darker than
 anything real. The per-element alpha assertions are the check, not the picture.
 
+### prefers-reduced-transparency
+
+A reader who has asked for reduced transparency gets the blur removed and the
+wash raised to 0.75 to make up the separation it was carrying — mark
+`dim-sharp`. It is deliberately **not** opaque. An earlier draft used 0.92 to
+read as a solid surface, which honours the preference more literally and is the
+wrong trade: it makes the page behind a modal all but disappear, which is the
+thing this pass spent three commits fixing.
+
+That draft also revealed how common the setting is. It is **on for this
+project's own author** — `defaults read com.apple.universalaccess
+reduceTransparency` returns 1 — who approved the blurred look while running it.
+A preference to avoid see-through panels is not a request to lose the page.
+
+The fixture **controls the query rather than reading it**, via
+`__setReducedTransparency`. This matters: the host's setting is not neutral
+here, so the default-path assertions were silently testing the reduced path and
+reporting the wrong flavour as a failure. A fixture that changes meaning with a
+system preference is not a test.
+
+The stub also notifies listeners on change, because that is the mechanism that
+ships: nothing in the DOM moves when the preference flips, so `content.js`
+registers a media-query handler. A fixture that nudged the DOM instead would
+exercise a different path than the product does — and the first version did
+exactly that, appending and removing a node in one tick, which `resolveRoots`
+then discarded as disconnected so no pass ran at all.
+
 ### Which way the uncertain cases fall
 
 Something wrongly called inert costs a dim. Something wrongly called active

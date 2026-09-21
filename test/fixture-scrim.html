@@ -124,6 +124,41 @@
   </div>
 
   <script>
+    // prefers-reduced-transparency is controlled here rather than read from the
+    // host, because the host's own setting is not neutral: it is ON for this
+    // project's author and for the Browser pane these fixtures run in, so the
+    // default-path assertions below silently tested the reduced path instead
+    // and reported the wrong flavour as a failure. A fixture that changes
+    // meaning with a system preference is not a test.
+    (function () {
+      let reduced = false;
+      const listeners = new Set();
+      const real = window.matchMedia.bind(window);
+
+      window.matchMedia = (q) => {
+        if (!/prefers-reduced-transparency/.test(q)) return real(q);
+        const wantsReduce = /reduce/.test(q);
+        const view = {
+          media: q,
+          get matches() { return wantsReduce ? reduced : !reduced; },
+          addEventListener: (_t, fn) => listeners.add(fn),
+          removeEventListener: (_t, fn) => listeners.delete(fn),
+          addListener: (fn) => listeners.add(fn),
+          removeListener: (fn) => listeners.delete(fn),
+        };
+        return view;
+      };
+
+      // Notifying listeners is what makes this exercise the real path: content.js
+      // registers a change handler precisely because nothing in the DOM moves
+      // when the preference flips, so a fixture that only mutated the DOM would
+      // be testing a different mechanism than the one that ships.
+      window.__setReducedTransparency = (v) => {
+        reduced = !!v;
+        for (const fn of listeners) fn({ matches: reduced, media: '(prefers-reduced-transparency: reduce)' });
+      };
+    })();
+
     (function () {
       const initialEnabled = !new URLSearchParams(location.search).has('off');
       const listeners = [];
@@ -268,6 +303,63 @@
         }
 
         return { failures, closed, open, dialog, appRoot, layer: state('layer-host') };
+      };
+
+      // A reader who has asked for reduced transparency gets the blur removed
+      // and a slightly denser wash in its place — not a solid backdrop. The
+      // page behind a modal still has to be visible; that requirement does not
+      // go away because someone dislikes see-through panels.
+      window.__probeReducedTransparency = async function () {
+        const failures = [];
+        const results = {};
+        // No DOM nudge: flipping the switch fires the media-query listener that
+        // content.js registers, which is the mechanism under test.
+        const settle = () => new Promise((r) => setTimeout(r, 500));
+
+        window.__setReducedTransparency(true);
+        await settle();
+
+        for (const id of ['open-scrim', 'wrapping-scrim', 'passthrough-scrim', 'nested-inner']) {
+          const st = state(id);
+          results[id] = st;
+          if (st.mark !== 'dim-sharp') {
+            failures.push(id + ' mark is ' + st.mark + ', expected "dim-sharp"');
+          }
+          if (/blur/.test(st.blur || '')) {
+            failures.push(id + ' still blurs under reduced transparency: ' + st.blur);
+          }
+          if (st.alpha !== null && (st.alpha < 0.7 || st.alpha > 0.8)) {
+            failures.push(id + ' alpha is ' + st.alpha + ', expected ~0.75');
+          }
+          // The page behind must survive the preference. An opaque backdrop
+          // here would be the black screen again, just better motivated.
+          if (st.alpha === 1) {
+            failures.push(id + ' went fully opaque — the page behind is gone');
+          }
+        }
+
+        // Clearing is unaffected: an inert scrim still paints nothing and a
+        // menu host still clears.
+        for (const id of ['closed-scrim', 'layer-host', 'nested-outer']) {
+          const st = state(id);
+          results[id] = st;
+          if (st.painting) failures.push(id + ' is painting under reduced transparency: ' + st.bg);
+        }
+
+        // And it must go back on its own when the preference is withdrawn,
+        // which is what the media-query listener in content.js is for.
+        window.__setReducedTransparency(false);
+        await settle();
+        const back = state('open-scrim');
+        results.restored = back;
+        if (back.mark !== 'dim') {
+          failures.push('after restoring, open-scrim mark is ' + back.mark + ', expected "dim"');
+        }
+        if (!/blur/.test(back.blur || '')) {
+          failures.push('after restoring, open-scrim lost its blur: ' + back.blur);
+        }
+
+        return { failures, results };
       };
 
       // Switching dark mode off must take the inline styles back off with it:

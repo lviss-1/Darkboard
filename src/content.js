@@ -72,6 +72,8 @@ let _darkEnabled = false;
 
 let streamObserver = null;
 let gradeObserver = null;
+let transparencyQuery = null;
+let onTransparencyChange = null;
 
 function setDarkMode(enabled) {
   // Guarded because this now runs as the very first thing the script does,
@@ -463,6 +465,33 @@ const SCRIM_DIM = 'rgba(0, 0, 0, 0.65)';
 // flat black.
 const SCRIM_BLUR = 'blur(3px)';
 
+// What a reader who has asked for reduced transparency gets instead: the blur
+// removed, and the wash raised a little to make up the separation it was
+// carrying. Text behind lands at 58 rather than 81.
+//
+// The blur is the part that matters here — it is the layer effect the
+// preference is named for, and dropping it is most of the job. The wash stays
+// deliberately short of opaque. An earlier draft used 0.92 to read as a solid
+// surface, which honours the preference more literally and is the wrong trade:
+// it makes the page behind a modal all but disappear, which is the thing this
+// file spent three commits fixing, and the setting turns out to be far more
+// common than a strict reading assumes — it is on for this project's own
+// author, who approved the blurred look while running it. A preference to
+// avoid see-through panels is not a request to lose the page.
+const SCRIM_DIM_SHARP = 'rgba(0, 0, 0, 0.75)';
+
+// Read per pass rather than cached, so the value is always current and so the
+// fixture can stub it. The query is absent in older Chrome, where `matches` is
+// false — which is the right default.
+function reducedTransparency() {
+  try {
+    return !!window.matchMedia
+      && window.matchMedia('(prefers-reduced-transparency: reduce)').matches;
+  } catch (e) {
+    return false;
+  }
+}
+
 // An open modal, as opposed to a menu or a popup. This is the signal that
 // decides whether a full-viewport element is a scrim, because modality is what
 // a scrim actually expresses. `dialog` needs [open] here: a closed <dialog> is
@@ -529,6 +558,7 @@ function reconcileScrims() {
   if (!vw || !vh) return;
 
   const modals = document.querySelectorAll(MODAL_SELECTORS);
+  const sharp = reducedTransparency();
 
   // Deepest first, so that when several nested elements all qualify, the one
   // closest to the modal claims the dim and its ancestors are cleared behind
@@ -608,8 +638,12 @@ function reconcileScrims() {
     // costs a dim, and something we wrongly call active costs the whole page.
     // Every signal above is a reason to paint less.
     const covered = dimmed.some((inner) => el.contains(inner));
-    const want = (host || inert || covered) ? 'clear' : 'dim';
-    if (want === 'dim') dimmed.push(el);
+    // The flavour is carried in the mark rather than kept beside it, so that
+    // toggling the preference changes `want` and the idempotence check below
+    // repaints on its own. A mark of 'dim' alone would match either flavour and
+    // the scrim would keep whichever one it was first given.
+    const want = (host || inert || covered) ? 'clear' : (sharp ? 'dim-sharp' : 'dim');
+    if (want !== 'clear') dimmed.push(el);
 
     // The mark records the decision; the priority check confirms our own
     // declaration is still on the element, so this self-heals if Blackboard
@@ -623,10 +657,14 @@ function reconcileScrims() {
     // confirmed live, where both 'transparent' and the dim survive the whole
     // stylesheet. Reordering rules in a 2,200-line cascade is how this file
     // grew its last three bugs.
-    const clear = want === 'clear';
-    el.style.setProperty('background-color', clear ? 'transparent' : SCRIM_DIM, 'important');
+    const fill = want === 'clear' ? 'transparent'
+      : want === 'dim-sharp' ? SCRIM_DIM_SHARP
+      : SCRIM_DIM;
+    el.style.setProperty('background-color', fill, 'important');
     el.style.setProperty('background-image', 'none', 'important');
-    el.style.setProperty('backdrop-filter', clear ? 'none' : SCRIM_BLUR, 'important');
+    // Only the default flavour blurs. Blur is the layer effect the preference
+    // is named for, so 'dim-sharp' goes without it.
+    el.style.setProperty('backdrop-filter', want === 'dim' ? SCRIM_BLUR : 'none', 'important');
     el.setAttribute(SCRIM_MARK, want);
   }
 }
@@ -841,6 +879,20 @@ function startEnhancements() {
     });
   });
 
+  // Nothing in the DOM changes when the reader flips this preference, so
+  // without a listener an open modal would keep the flavour it was given until
+  // the next unrelated mutation happened to run a pass.
+  if (window.matchMedia && !transparencyQuery) {
+    try {
+      transparencyQuery = window.matchMedia('(prefers-reduced-transparency: reduce)');
+      onTransparencyChange = () => runStreamPass(null);
+      transparencyQuery.addEventListener('change', onTransparencyChange);
+    } catch (e) {
+      transparencyQuery = null;
+      onTransparencyChange = null;
+    }
+  }
+
   // Also starts the observation, via the reconnect at the end of the pass.
   runStreamPass(null);
 
@@ -877,6 +929,12 @@ function stopEnhancements() {
     gradeObserver.disconnect();
     gradeObserver = null;
   }
+
+  if (transparencyQuery && onTransparencyChange) {
+    transparencyQuery.removeEventListener('change', onTransparencyChange);
+  }
+  transparencyQuery = null;
+  onTransparencyChange = null;
 
   revertStreamDark();
   revertScrims();

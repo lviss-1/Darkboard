@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Blackboard Dark Mode - DarkBoard",
   "version": "1.2.0",
-  "description": "A zero-FOUC dark theme for Blackboard Ultra. Toggle via the popup.",
+  "description": "Dark mode for Blackboard Ultra at Iona University. No setup, no white flash, just a readable LMS at 2am.",
 
   "icons": {
     "16":  "icons/icon16.png",

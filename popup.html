@@ -367,7 +367,13 @@
     <div class="scope-pill">Embedded frames</div>
   </div>
 
-  <a class="rate-link" id="rateLink" target="_blank" rel="noopener noreferrer" hidden>
+  <!-- The listing URL is written out rather than assembled at runtime. The old
+       version built it from chrome.runtime.id, which is only the published id
+       when the extension came FROM the store: an unpacked build gets a locally
+       generated id, so every development install linked to a listing that does
+       not exist. The slug cannot be derived at runtime at all. -->
+  <a class="rate-link" id="rateLink" target="_blank" rel="noopener noreferrer"
+     href="https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip">
     FIND IT USEFUL? LEAVE A RATING
   </a>
 

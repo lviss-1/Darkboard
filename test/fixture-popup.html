@@ -41,9 +41,11 @@
             }),
             sendMessage: () => Promise.resolve(),
             lastError: undefined,
-            // popup.js reads this to build the review link. ?noid drops it,
-            // which is what an unpacked build looks like, and the prompt has
-            // to stay hidden rather than link to /detail/undefined/reviews.
+            // ?noid drops the runtime id, which is what an unpacked build
+            // looks like. Nothing in the popup reads it any more — that is the
+            // point of the scenario now. The review link used to be assembled
+            // from it and therefore broke on exactly this install, so the
+            // assertion is that the link is unaffected by its absence.
             id: ${NO_ID ? 'undefined' : "'ogkjalalkednannikfgjhcnmgcepkeip'"},
           },
           storage: { local: { get: (k, cb) => cb({}), set() {} } },
@@ -113,10 +115,14 @@
         statusIsLive:
           doc.getElementById('statusText').getAttribute('aria-live') === 'polite',
 
-        // The rating prompt. It must point at this extension's own listing,
-        // and must stay hidden when there is no id to point with.
+        // The rating prompt. It must point at this extension's own published
+        // listing, and must do so whether or not a runtime id exists — an
+        // unpacked build gets a locally generated one, which is how this link
+        // came to point at a listing that does not exist.
         rateHidden: doc.getElementById('rateLink').hidden,
         rateHref: doc.getElementById('rateLink').getAttribute('href'),
+        rateReachesStore: /^https:\/\/chromewebstore\.google\.com\/detail\/[^/]+\/ogkjalalkednannikfgjhcnmgcepkeip/
+          .test(doc.getElementById('rateLink').getAttribute('href') || ''),
         rateColor: colorOf('.rate-link'),
       };
     };

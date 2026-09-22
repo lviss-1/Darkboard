@@ -8,23 +8,17 @@ const card      = document.getElementById('mainCard');
 const statusEl  = document.getElementById('statusText');
 const versionEl = document.getElementById('versionTag');
 const scopeNote = document.getElementById('scopeNote');
-const rateLink  = document.getElementById('rateLink');
 
 versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 
-// ─── Rating prompt ────────────────────────────────────────────────────────
-// The extension id is read at runtime rather than pasted in. The published id
-// already appears in README.md, and a second copy here would be one more
-// thing to get wrong — and it would be wrong silently, sending people to a
-// listing that is not this one.
-//
-// Hidden by default in the markup and only revealed once there is a real id
-// to link to, so an unpacked build or a stubbed environment shows nothing
-// rather than a link to /detail/undefined/reviews.
-if (chrome.runtime.id) {
-  rateLink.href = `https://chromewebstore.google.com/detail/${chrome.runtime.id}/reviews`;
-  rateLink.hidden = false;
-}
+// The rating prompt is a plain static link in popup.html now. It used to be
+// built here from chrome.runtime.id, on the reasoning that a pasted id is one
+// more thing to get wrong — which was true, and still sent people nowhere.
+// chrome.runtime.id is the published id only when the extension was installed
+// FROM the store; an unpacked build gets a locally generated one, so the link
+// pointed at a listing that does not exist on every development install. The
+// store slug cannot be read at runtime at any rate, so there is nothing left
+// for script to contribute.
 
 function updateUI(enabled) {
   toggle.checked = enabled;

@@ -1,2 +1,8 @@
 # macOS Finder metadata. These were tracked once and shipped inside the CRX.
 .DS_Store
+
+# Store upload packages. Built from the tracked sources by zipping manifest.json,
+# popup.html, icons/ and src/, so committing them stores a second copy of the
+# whole extension per release — and a stale one, since the zip is usually rebuilt
+# after the commit that carries it.
+darkboard-*.zip

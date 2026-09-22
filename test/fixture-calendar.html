@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — calendar week strip</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '../src/dark-mode.css?cb=' + Date.now();
+      link.onload = () => setTimeout(resolve, 60);
+      link.onerror = () => setTimeout(resolve, 60);
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <script>
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        if (document.hidden) return setTimeout(() => fn(performance.now()), 0);
+        return native(fn);
+      };
+    })();
+  </script>
+
+  <style>
+    /* Stands in for Blackboard's own sheet. `.course-color-N` sets a background
+       on the dot and a left border elsewhere — which is exactly the split that
+       makes the colour recoverable: the theme overrides background-color
+       everywhere, and leaves border-left-color alone. */
+    .course-color-5 { background-color: rgb(137, 243, 219); border-left: 2px solid rgb(137, 243, 219); }
+    .course-color-9 { background-color: rgb(202, 34, 173); border-left: 2px solid rgb(202, 34, 173); }
+    .course-color-3 { background-color: rgb(255, 225, 43); border-left: 2px solid rgb(255, 225, 43); }
+    /* No carrier is rendered for this one — it exercises the fallback. */
+    .course-color-7 { background-color: rgb(120, 200, 60); }
+
+    .event-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border-left-width: 0; }
+    li.week-day button { border-radius: 50%; width: 42px; height: 42px; }
+    .legend { list-style: none; padding: 0; }
+    .legend li { height: 0; overflow: hidden; }
+    table { border-collapse: collapse; }
+    td { padding: 6px 10px; }
+  </style>
+</head>
+<body>
+
+  <!-- ── The week strip ────────────────────────────────────────────────── -->
+  <ul class="small-block-grid-7 days">
+    <li class="week-day date"><button id="day-20">20</button></li>
+    <li class="week-day date"><button id="day-21" class="date-selected fc-today">21</button></li>
+    <li class="week-day date"><button id="day-22">22</button></li>
+  </ul>
+
+  <!-- The dots live in a second list, exactly as Blackboard renders them. -->
+  <ul class="small-block-grid-7 days event-dots">
+    <li class="week-day">
+      <span class="sr-only">1 scheduled item</span>
+      <span class="event-dot course-color-5" id="dot-teal"></span>
+    </li>
+    <li class="week-day current-day">
+      <span class="event-dot course-color-9" id="dot-magenta"></span>
+      <span class="event-dot course-color-3" id="dot-yellow"></span>
+    </li>
+    <li class="week-day">
+      <!-- No carrier exists for course-color-7: the fallback has to make this
+           visible anyway, because "something is due" is the message. -->
+      <span class="event-dot course-color-7" id="dot-orphan"></span>
+    </li>
+  </ul>
+
+  <!-- The hidden legend the real page carries. This is where the colour is
+       read from; it is 0px tall and invisible, which is the point — the pass
+       must not depend on the carrier being on screen. -->
+  <ul class="legend">
+    <li class="course-color-5"></li>
+    <li class="course-color-9"></li>
+    <li class="course-color-3"></li>
+  </ul>
+
+  <!-- ── FullCalendar's nested tables ──────────────────────────────────── -->
+  <div class="fc-time-grid-container fc-scroller">
+    <table>
+      <tbody>
+        <tr id="fc-outer-row">
+          <td class="fc-widget-content" id="fc-outer-cell">
+            <div class="fc-time-grid">
+              <div class="fc-slats">
+                <table>
+                  <tbody>
+                    <tr id="fc-hour-row">
+                      <td class="fc-widget-content" id="fc-hour-cell">7 PM</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── A real data table, outside the calendar ───────────────────────── -->
+  <!-- The guard narrows row hover; it must not abolish it. This is the
+       gradebook shape and it still has to light up. -->
+  <table id="grades">
+    <tbody>
+      <tr id="grade-row"><td id="grade-cell">Assignment #1</td><td>47 / 50</td></tr>
+    </tbody>
+  </table>
+
+  <!-- A nested data table outside the calendar: the outer row must stay put
+       while the inner one hovers. -->
+  <table>
+    <tbody>
+      <tr id="nested-outer-row">
+        <td>
+          <table><tbody>
+            <tr id="nested-inner-row"><td id="nested-inner-cell">inner</td></tr>
+          </tbody></table>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- :focus-within propagates to every ancestor, so an unguarded outer row
+       stays flooded for as long as the input holds focus. -->
+  <table>
+    <tbody>
+      <tr id="focus-outer-row">
+        <td>
+          <table><tbody>
+            <tr id="focus-inner-row"><td><input id="focus-input" /></td></tr>
+          </tbody></table>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script>
+    (function () {
+      const initialEnabled = !new URLSearchParams(location.search).has('off');
+      const listeners = [];
+      try { localStorage.removeItem('darkboard.enabled'); } catch (e) {}
+
+      window.chrome = {
+        storage: { local: { get(_k, cb) { setTimeout(() => cb({ darkModeEnabled: initialEnabled }), 0); }, set() {} } },
+        runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } },
+      };
+      window.__fireToggle = (enabled) =>
+        listeners.forEach((fn) => fn({ type: 'BB_DARK_MODE_TOGGLE', enabled }));
+
+      const parse = (v) => {
+        const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(v || '');
+        return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+      };
+
+      const read = (id) => {
+        const el = __restyleTree(document.getElementById(id));
+        const cs = getComputedStyle(el);
+        return { bg: cs.backgroundColor, border: cs.borderTopWidth + ' ' + cs.borderTopColor,
+                 borderWidth: cs.borderTopWidth, color: cs.color,
+                 mark: el.getAttribute('data-darkboard-dot') };
+      };
+      window.__read = read;
+
+      // Painting at all, as opposed to resting on the canvas behind it.
+      const painting = (id) => {
+        const bg = parse(read(id).bg);
+        return !!bg && bg.a > 0.01;
+      };
+      window.__painting = painting;
+
+      // The hover assertions need a REAL :hover, which only the pointer can
+      // produce — driven from the Browser pane's `computer` hover action. This
+      // reports where to put it.
+      window.__box = function (id) {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+                 w: Math.round(r.width), h: Math.round(r.height) };
+      };
+
+      // Deliberately NOT through __restyleTree. That helper settles a node by
+      // removing and reinserting it, which takes the pointer off the element
+      // and cancels :hover — the first version of these assertions reported
+      // every row as unhovered and would have passed against the broken build.
+      // A pointer move forces a style recalc on its own, so the value is fresh
+      // without help.
+      const liveBg = (id) => getComputedStyle(document.getElementById(id)).backgroundColor;
+      window.__liveBg = liveBg;
+
+      // The Browser pane's hover action works in screenshot pixels, which are
+      // not the page's client coordinates. Rather than assume an offset, record
+      // where the page actually saw the pointer and solve for it — a hover that
+      // silently lands on the wrong element reports the wrong row as clean.
+      window.__lastPointer = null;
+      document.addEventListener('mousemove', (e) => {
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        window.__lastPointer = { clientX: e.clientX, clientY: e.clientY,
+          over: el ? (el.id || el.tagName.toLowerCase() + '.' + (el.className || '').slice(0, 25)) : null };
+      }, true);
+
+      // Calibrate with TWO points and solve client = screenshot * k + c. One
+      // point cannot tell an offset from a scale, and guessing offset was wrong
+      // here: the pane runs at 1.08, so a single-sample model put the pointer
+      // on the wrong element and reported a flooded row as clean.
+      window.__calibrate = function (sent1, seen1, sent2, seen2) {
+        const kx = (seen2[0] - seen1[0]) / (sent2[0] - sent1[0]);
+        const ky = (seen2[1] - seen1[1]) / (sent2[1] - sent1[1]);
+        const cx = seen1[0] - kx * sent1[0];
+        const cy = seen1[1] - ky * sent1[1];
+        window.__aim = (id) => {
+          const r = document.getElementById(id).getBoundingClientRect();
+          return [Math.round((r.left + r.width / 2 - cx) / kx),
+                  Math.round((r.top + r.height / 2 - cy) / ky)];
+        };
+        return { scale: [kx, ky], origin: [cx, cy] };
+      };
+
+      window.__hoverState = function () {
+        return {
+          fcOuterRow: liveBg('fc-outer-row'),
+          fcOuterCell: liveBg('fc-outer-cell'),
+          fcHourRow: liveBg('fc-hour-row'),
+          fcHourCell: liveBg('fc-hour-cell'),
+          gradeRow: liveBg('grade-row'),
+          nestedOuter: liveBg('nested-outer-row'),
+          nestedInner: liveBg('nested-inner-row'),
+        };
+      };
+
+      // --bg-hover resolved through a throwaway element, because CSSOM
+      // re-serialises colours and the token is written as a hex.
+      const serialize = (v) => { const d = document.createElement('div');
+        d.style.backgroundColor = v; return d.style.backgroundColor; };
+      const hoverFill = () => serialize(getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg-hover').trim());
+      const tertiary = () => serialize(getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg-tertiary').trim());
+
+      // Asserted per scenario, because a real :hover only exists while the
+      // pointer is actually on the element; the caller places it first.
+      window.__checkHover = function (scenario) {
+        const failures = [];
+        const h = window.__hoverState();
+        const fill = hoverFill();
+        const saw = window.__lastPointer && window.__lastPointer.over;
+
+        if (scenario === 'fc') {
+          if (saw !== 'fc-outer-cell' && saw !== 'fc-hour-cell') {
+            failures.push('pointer landed on ' + saw + ', not the calendar grid');
+          }
+          // The whole point: one row wrapping the grid must not light up.
+          if (h.fcOuterRow === fill) failures.push('outer calendar row flooded: ' + h.fcOuterRow);
+          if (h.fcOuterCell === fill) failures.push('outer calendar cell flooded: ' + h.fcOuterCell);
+          // And the hour row itself stays put too — slats are scaffolding.
+          if (h.fcHourRow === fill) failures.push('calendar hour row painted: ' + h.fcHourRow);
+          if (h.fcHourCell === fill) failures.push('calendar hour cell painted: ' + h.fcHourCell);
+        }
+
+        if (scenario === 'nested') {
+          if (h.nestedOuter === fill) failures.push('outer row flooded while hovering the inner: ' + h.nestedOuter);
+          if (h.nestedInner !== fill) failures.push('inner row did not hover: ' + h.nestedInner);
+        }
+
+        // The feature the guard narrows. If this stops working the guard has
+        // gone too far, which is the likeliest regression here.
+        if (scenario === 'grade') {
+          if (saw !== 'grade-cell') failures.push('pointer landed on ' + saw + ', not the grade row');
+          if (h.gradeRow !== fill) failures.push('gradebook row stopped hovering: ' + h.gradeRow);
+        }
+
+        return { failures, state: h, fill, saw };
+      };
+
+      window.__checkFocus = function () {
+        const failures = [];
+        const f = window.__focusState();
+        if (f.outer === tertiary()) {
+          failures.push('outer row flooded by focus-within, and stays flooded: ' + f.outer);
+        }
+        return { failures, state: f };
+      };
+
+      window.__focusState = function () {
+        return { outer: liveBg('focus-outer-row'), inner: liveBg('focus-inner-row') };
+      };
+
+      // Everything that does not need a pointer.
+      window.__probe = function () {
+        const failures = [];
+        const results = {};
+
+        // Dots must wear their course's real colour, recovered from the hidden
+        // legend rather than guessed.
+        const expected = {
+          'dot-teal': 'rgb(137, 243, 219)',
+          'dot-magenta': 'rgb(202, 34, 173)',
+          'dot-yellow': 'rgb(255, 225, 43)',
+        };
+        for (const [id, want] of Object.entries(expected)) {
+          const st = read(id);
+          results[id] = st;
+          if (st.bg !== want) failures.push(id + ' is ' + st.bg + ', expected ' + want);
+        }
+
+        // No carrier: still has to be visible. This is the case that would
+        // otherwise sit on the canvas and read as "nothing is due".
+        const orphan = read('dot-orphan');
+        results['dot-orphan'] = orphan;
+        if (!painting('dot-orphan')) {
+          failures.push('orphan dot is not painting at all: ' + orphan.bg);
+        }
+        if (__contrast(orphan.bg, '#0a0a0c') < 3) {
+          failures.push('orphan dot is ' + __contrast(orphan.bg, '#0a0a0c').toFixed(2) +
+            ':1 against the page, below the 3:1 non-text floor');
+        }
+
+        // Every dot, including the ones wearing real colours, has to clear the
+        // same floor — a recovered colour is not automatically a legible one.
+        for (const id of Object.keys(expected)) {
+          const r = __contrast(read(id).bg, '#0a0a0c');
+          if (r < 3) failures.push(id + ' is ' + r.toFixed(2) + ':1 against the page');
+        }
+
+        // Today: filled, readable, and the only date wearing anything.
+        const today = read('day-21');
+        results['day-21'] = today;
+        const accent = getComputedStyle(document.documentElement)
+          .getPropertyValue('--accent-primary').trim();
+        if (!painting('day-21')) failures.push('today has no fill: ' + today.bg);
+        if (__contrast(today.color, today.bg) < 4.5) {
+          failures.push("today's number is " + __contrast(today.color, today.bg).toFixed(2) +
+            ':1 on its own fill');
+        }
+        if (parseFloat(today.borderWidth) <= 0) {
+          failures.push('today lost its rim — the accent alone does not clear 3:1 on the page');
+        }
+
+        // The other dates must carry no border. An outline circle on all seven
+        // is noise light mode does not have, and it is ours, not Blackboard's.
+        for (const id of ['day-20', 'day-22']) {
+          const st = read(id);
+          results[id] = st;
+          if (parseFloat(st.borderWidth) > 0) {
+            failures.push(id + ' still has a ' + st.borderWidth + ' outline');
+          }
+          if (painting(id)) failures.push(id + ' is filled but is not today: ' + st.bg);
+        }
+
+        return { failures, results };
+      };
+
+      window.__probeOff = function () {
+        const failures = [];
+        const marks = document.querySelectorAll('[data-darkboard-dot]').length;
+        if (marks) failures.push(marks + ' dot marks survived the toggle off');
+        for (const id of ['dot-teal', 'dot-magenta']) {
+          const inline = document.getElementById(id).style.getPropertyValue('background-color');
+          if (inline) failures.push(id + ' kept an inline background: ' + inline);
+        }
+        return { failures };
+      };
+    })();
+  </script>
+
+  <script>
+    window.__scriptReady = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = '../src/content.js?cb=' + Date.now();
+      s.onload = resolve;
+      document.body.appendChild(s);
+    });
+  </script>
+</body>
+</html>

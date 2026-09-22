@@ -63,6 +63,7 @@ function writeMirror(enabled) {
 // override can be found and undone when dark mode is switched off.
 const MARK = 'data-darkboard-bg';
 const SCRIM_MARK = 'data-darkboard-scrim';
+const DOT_MARK = 'data-darkboard-dot';
 
 // Kept in sync by init() and the message listener so the observers can
 // read it synchronously without an async storage round-trip. Seeded from the
@@ -395,6 +396,7 @@ function runStreamPass(roots) {
   if (!streamObserver) {
     enforceStreamDark(roots);
     reconcileScrims();
+    restoreEventDots();
     return;
   }
 
@@ -406,6 +408,7 @@ function runStreamPass(roots) {
   // mutation, and the candidate set is small enough that scoping it would buy
   // nothing but a way to miss one.
   reconcileScrims();
+  restoreEventDots();
   streamObserver.observe(document.body, STREAM_OBSERVER_CONFIG);
 }
 
@@ -680,6 +683,89 @@ function revertScrims() {
   }
 }
 
+// ─── Calendar Event Dots ──────────────────────────────────────────────────
+// The week strip carries a dot under any date with something due, coloured per
+// course. They are still in the DOM in dark mode and still the right size and
+// place — they are just invisible, because Blackboard sets only
+// `background-color` on `.course-color-N` and section 3's universal
+// `background-color: inherit !important` erases it. Measured live, every dot
+// computes to rgb(10, 10, 12): exactly --bg-primary, the canvas behind it.
+//
+// This is in script rather than CSS for one reason: the colour is knowable, but
+// only from a DIFFERENT element. Blackboard's stylesheets are cross-origin, so
+// cssRules throws SecurityError and the value cannot be looked up — but the
+// page carries a hidden `li.course-color-N` legend, and on those elements the
+// same class also sets `border-left-color`, which the theme does not override.
+// CSS cannot copy a computed value across the DOM. So: read it there, write it
+// here, which is the same measure-then-apply shape as the two passes above.
+
+const COURSE_COLOR = /(?:^|\s)(course-color-\d+)(?:\s|$)/;
+
+// Fallback when no carrier is on the page. An uncoloured dot beats an invisible
+// one: what the strip is communicating is "something is due on this day", and
+// which course it belongs to is the smaller half of that.
+const DOT_FALLBACK_TOKEN = '--text-main';
+
+function courseClassOf(el) {
+  const m = COURSE_COLOR.exec(' ' + (el.getAttribute('class') || '') + ' ');
+  return m ? m[1] : null;
+}
+
+// The authentic colour for one course class, or null. Resolved from the first
+// element wearing that class that is NOT a dot and carries a real left border:
+// a dot's own border-color resolves to currentColor, which the theme has
+// already forced to --text-main, so a dot can never answer this about itself.
+function courseColor(cls, themeText) {
+  for (const el of document.querySelectorAll('.' + cls)) {
+    if (el.classList.contains('event-dot')) continue;
+    const computed = window.getComputedStyle(el);
+    if (parseFloat(computed.borderLeftWidth) <= 0) continue;
+    const color = computed.borderLeftColor;
+    if (!color || color === themeText) continue;
+    if (/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(color)) continue;
+    return color;
+  }
+  return null;
+}
+
+function restoreEventDots() {
+  if (!_darkEnabled || !document.body) return;
+
+  const dots = document.querySelectorAll('.event-dot');
+  if (!dots.length) return;
+
+  const root = window.getComputedStyle(document.documentElement);
+  const themeText = root.getPropertyValue('color') || '';
+  const fallback = root.getPropertyValue(DOT_FALLBACK_TOKEN).trim();
+
+  // One lookup per course class, not per dot: the carrier scan is a document
+  // query and a week can hold a dozen dots across four courses.
+  const resolved = new Map();
+
+  for (const dot of dots) {
+    const cls = courseClassOf(dot);
+    const key = cls || '';
+    if (!resolved.has(key)) {
+      resolved.set(key, (cls && courseColor(cls, themeText)) || fallback || null);
+    }
+    const color = resolved.get(key);
+    if (!color) continue;
+
+    if (dot.getAttribute(DOT_MARK) === color
+        && dot.style.getPropertyPriority('background-color') === 'important') continue;
+
+    dot.style.setProperty('background-color', color, 'important');
+    dot.setAttribute(DOT_MARK, color);
+  }
+}
+
+function revertEventDots() {
+  for (const dot of document.querySelectorAll('[' + DOT_MARK + ']')) {
+    dot.style.removeProperty('background-color');
+    dot.removeAttribute(DOT_MARK);
+  }
+}
+
 // ─── Grade Colorizer ──────────────────────────────────────────────────────
 // CSS cannot do arithmetic, so JS reads grade strings, calculates the
 // percentage, and stamps a data attribute that CSS rules target.
@@ -938,6 +1024,7 @@ function stopEnhancements() {
 
   revertStreamDark();
   revertScrims();
+  revertEventDots();
 }
 
 init();

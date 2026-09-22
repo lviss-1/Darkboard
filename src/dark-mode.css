@@ -1508,12 +1508,20 @@ html[data-bb-dark] [role="option"]:hover {
    step just past a card, so a grey hover was invisible on every alternate row.
    The maroon cast also makes "the pointer is here" read differently from
    "this row is striped", which two greys never could. */
-html[data-bb-dark] tr:hover,
-html[data-bb-dark] tr:hover td,
-html[data-bb-dark] tr:hover th,
-html[data-bb-dark] [role="row"]:hover,
-html[data-bb-dark] [role="row"]:hover [role="cell"],
-html[data-bb-dark] [role="row"]:hover [role="gridcell"] {
+/* `tr` and [role="row"] carry the same innermost-only guard as the substring
+   selectors below, and for the same reason spelled out there. They went without
+   one until the Calendar page showed what that costs: FullCalendar nests
+   tables, and walking up from an hour slot finds a `tr` that is 1195x420 — one
+   row wrapping the entire visible grid. Hovering anywhere in the grid matched
+   it, and with section 3 leaving descendants nothing of their own to fall back
+   on, --bg-hover flooded the whole subtree. The maroon cast that makes this
+   fill legible on one data row makes a full-page wash of it unmissable. */
+html[data-bb-dark] tr:hover:not(:has(tr)),
+html[data-bb-dark] tr:hover:not(:has(tr)) td,
+html[data-bb-dark] tr:hover:not(:has(tr)) th,
+html[data-bb-dark] [role="row"]:hover:not(:has([role="row"])),
+html[data-bb-dark] [role="row"]:hover:not(:has([role="row"])) [role="cell"],
+html[data-bb-dark] [role="row"]:hover:not(:has([role="row"])) [role="gridcell"] {
   background-color: var(--bg-hover) !important;
   color: var(--text-main) !important;
 }
@@ -1588,15 +1596,31 @@ html[data-bb-dark] [class*="Row"]:hover:not(:has(:is([class*="Row"], [class*="-r
   color: var(--text-main) !important;
 }
 
-/* Focus states — keyboard nav should also be dark */
-html[data-bb-dark] tr:focus-within,
-html[data-bb-dark] [role="row"]:focus-within,
-html[data-bb-dark] [class*="-row"]:focus-within,
-html[data-bb-dark] [class*="_row"]:focus-within,
-html[data-bb-dark] [class*="Row"]:focus-within,
-html[data-bb-dark] [class*="listItem"]:focus-within,
-html[data-bb-dark] [class*="ListItem"]:focus-within {
+/* Focus states — keyboard nav should also be dark.
+   Guarded like the hover block, and here it matters more: :focus-within
+   propagates to every ancestor, so an unguarded outer row does not merely
+   flood, it stays flooded for as long as anything inside it holds focus. */
+html[data-bb-dark] tr:focus-within:not(:has(tr)),
+html[data-bb-dark] [role="row"]:focus-within:not(:has([role="row"])),
+html[data-bb-dark] [class*="-row"]:focus-within:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))),
+html[data-bb-dark] [class*="_row"]:focus-within:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))),
+html[data-bb-dark] [class*="Row"]:focus-within:not(:has(:is([class*="Row"], [class*="-row"], [class*="_row"], [role="row"], tr))),
+html[data-bb-dark] [class*="listItem"]:focus-within:not(:has(:is([class*="listItem"], [class*="list-item"], [class*="ListItem"], li))),
+html[data-bb-dark] [class*="ListItem"]:focus-within:not(:has(:is([class*="listItem"], [class*="list-item"], [class*="ListItem"], li))) {
   background-color: var(--bg-tertiary) !important;
+}
+
+/* FullCalendar's slats are layout scaffolding, not records. The guards above
+   narrow the flood to a single hour row; this removes it entirely, because a
+   maroon band chasing the pointer down an hour grid is wrong at any width.
+   `inherit` rather than a colour: under section 3's universal rule, inherit is
+   what the resting state already is. */
+html[data-bb-dark] [class*="fc-"] tr:hover,
+html[data-bb-dark] [class*="fc-"] tr:hover td,
+html[data-bb-dark] [class*="fc-"] tr:hover th,
+html[data-bb-dark] [class*="fc-"] tr:focus-within,
+html[data-bb-dark] [class*="fc-"] [role="row"]:hover {
+  background-color: inherit !important;
 }
 
 /* A net for the light hover shade Blackboard injects inline on rows, e.g.
@@ -2207,5 +2231,52 @@ html[data-bb-dark] body [class*="panel-title"]:not(#_darkboard) {
    on the same bar and must come with it. */
 html[data-bb-dark] body [class*="panel-header"] :is(p, span, bdi):not(#_darkboard),
 html[data-bb-dark] body [class*="panel-titles-container"] :is(p, span, bdi):not(#_darkboard) {
+  color: var(--text-on-accent) !important;
+}
+
+/* ─── 36. CALENDAR — THE WEEK STRIP ──────────────────────────────────────
+   Light mode marks a week two ways: a dot under any date with something due,
+   coloured per course, and a filled circle on today. Dark mode had neither,
+   and drew an outline circle on all seven dates instead — noise light mode
+   does not have.
+
+   The outline is ours. Section 8 gives every non-primary button
+   `border: 1px solid var(--border-interactive)`, which is right for a button
+   and wrong here, because Blackboard supplies `border-radius: 50%` and the two
+   together read as a selection ring on every day of the week. Scoped off the
+   calendar strip only; the outline stays everywhere else, where it is what
+   stops a button becoming a permanent grey slab.
+
+   The dots are handled in content.js, not here: their colour lives on a
+   different element and CSS cannot copy a computed value across the DOM. */
+html[data-bb-dark] li.week-day button,
+html[data-bb-dark] [class*="week-day"] button {
+  border: none !important;
+}
+
+/* Today. --accent-primary does not clear 3:1 against the page on its own —
+   that is the whole reason accent.js derives an edge — so the rim is load
+   bearing rather than decoration. --text-on-accent is verified against the
+   fill at 4.5:1 by the Node sweep, so the number stays readable.
+
+   Specificity: section 8's `button:not([class*="primary"])` is (0,2,2) and
+   sets the transparent fill these have to beat. `body` plus the class lands
+   this at (0,2,3), so it wins on specificity rather than on source order. */
+html[data-bb-dark] body li.week-day button.date-selected,
+html[data-bb-dark] body li.week-day button.fc-today,
+html[data-bb-dark] body [class*="week-day"] button[class*="date-selected"],
+html[data-bb-dark] body [class*="week-day"] button[class*="fc-today"] {
+  background-color: var(--accent-primary) !important;
+  color: var(--text-on-accent) !important;
+  border: 1px solid var(--accent-edge) !important;
+}
+
+/* Hovering today must not wash the fill away. Section 8's button hover is
+   (0,2,2) + :hover = (0,3,2); this is (0,2,3) + :hover = (0,3,3). */
+html[data-bb-dark] body li.week-day button.date-selected:hover,
+html[data-bb-dark] body li.week-day button.fc-today:hover,
+html[data-bb-dark] body [class*="week-day"] button[class*="date-selected"]:hover,
+html[data-bb-dark] body [class*="week-day"] button[class*="fc-today"]:hover {
+  background-color: var(--accent-hover) !important;
   color: var(--text-on-accent) !important;
 }

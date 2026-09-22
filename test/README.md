@@ -865,6 +865,88 @@ less, and the toggle-off assertions exist because these are inline styles,
 which `[data-bb-dark]` does not gate and which would otherwise survive turning
 the extension off.
 
+## fixture-calendar.html
+
+Covers two Calendar-page reports: the day markers missing, and hovering the
+hour grid washing the whole thing maroon.
+
+### The markers were never missing
+
+The dots are in the DOM the whole time. Blackboard renders a second list,
+`ul.days.event-dots`, holding `span.event-dot.course-color-N`. Measured live,
+each one computes to `rgb(10, 10, 12)` — exactly `--bg-primary`, the canvas
+behind it. Blackboard sets only `background-color` on `.course-color-N` and
+section 3's universal `inherit` erases it, so the dots are the right size, in
+the right place, painted to match the page.
+
+Today had the same shape of problem: the button carries `date-selected
+fc-today` and computed to `rgba(0, 0, 0, 0)`. And the outline circle on all
+seven dates is ours, not Blackboard's — section 8 gives every non-primary
+button `border: 1px solid var(--border-interactive)`, and Blackboard's
+`border-radius: 50%` turns that into a selection ring on every day of the week.
+
+### Why the dots need JavaScript
+
+The colour is knowable but only from a *different element*. Blackboard's
+stylesheets are cross-origin, so `cssRules` throws `SecurityError` and the
+value cannot be looked up — but the page carries a hidden `li.course-color-N`
+legend, and there the same class also sets `border-left-color`, which the theme
+does not override. CSS cannot copy a computed value across the DOM, so
+`restoreEventDots` in `content.js` reads it there and writes it here.
+
+The fixture models that split exactly: `.course-color-N` sets a background on
+the dot and a left border on the legend entry. `#dot-orphan` wears a class with
+no carrier and must still come out visible — what the strip communicates is
+"something is due", and which course is the smaller half of that.
+
+| Element | Expected |
+|---|---|
+| `#dot-teal` / `#dot-magenta` / `#dot-yellow` | the carrier's real colour, each ≥3:1 on the page |
+| `#dot-orphan` | no carrier — falls back, still ≥3:1 |
+| `#day-21` | filled `--accent-primary`, number ≥4.5:1, rim present |
+| `#day-20` / `#day-22` | no border, no fill |
+
+The rim on today is load bearing rather than decoration: `--accent-primary`
+does not clear 3:1 against the page on its own, which is the whole reason
+`accent.js` derives an edge.
+
+### The hover flood
+
+FullCalendar nests tables. Walking up from an hour slot on the live page finds
+a `tr` that is **1195×420 — one row wrapping the entire visible grid**. Section
+23's `tr:hover` had no `:has()` guard, unlike the substring row selectors
+directly beneath it whose comment describes this exact failure, so that outer
+row matched and `--bg-hover` flooded the whole subtree.
+
+`:focus-within` had the same gap and is worse: focus propagates to every
+ancestor, so the flood *persists* rather than following the pointer.
+
+Both are now guarded. On top of that, FullCalendar's rows do not hover at all —
+its slats are layout scaffolding, not records, and a maroon band chasing the
+pointer down an hour grid is wrong at any width.
+
+`#grade-row` is the control. The guard narrows a real feature, and a gradebook
+row that stopped lighting up is the likeliest regression, so it is asserted
+rather than assumed.
+
+### Driving a real hover
+
+`:hover` cannot be synthesised — `dispatchEvent` does not produce it. These
+assertions use the Browser pane's `computer` `hover` action and then read the
+computed style, and two things about that are worth knowing.
+
+**Do not read through `__restyleTree`.** It settles a node by removing and
+reinserting it, which takes the pointer off the element and cancels the hover.
+The first version of these assertions did, reported every row as unhovered, and
+would have passed against the broken build.
+
+**Calibrate with two points, not one.** The pane's coordinate frame is *scaled*
+relative to the page — 1.08 here, not an offset. A single-sample offset model
+put the pointer on a neighbouring element, which reported a flooded row as
+clean and a hovering row as inert. `__calibrate` solves
+`client = screenshot * k + c` from two samples, and `__checkHover` asserts what
+the pointer actually landed on before trusting anything it measured.
+
 ## restyle.js
 
 Forces a genuine style resolution on an element before it is measured, which

@@ -148,6 +148,54 @@ exists.
 | Text button border vs page | at least 3:1 |
 | Primary button | maroon fill, unchanged |
 
+## fixture-overrides.html
+
+Covers where the broad overrides land: the inline-style catchers in sections
+18 and 23, table striping in section 9, `aria-expanded` / `aria-selected`, and
+the MUI floating label at the top of the file. Pure CSS, so the gate is set in
+the markup and no content script loads. `?css=` swaps the stylesheet.
+
+Several checks read the stylesheet through the CSSOM rather than the page, and
+exist because of specific past mistakes:
+
+- A floating-label list once read `label,h`. The comma closed that selector and
+  the stray `h` bound to the next line, producing a valid selector that can
+  never match. `__bareTypeSelectors()` finds that signature.
+- `background-color: rgb(2` as a substring matched every red channel from 2 to
+  255, which is most of the colour space rather than the light greys it aimed
+  at.
+- The MUI block once hardcoded its colours on the claim that JSS injection
+  breaks custom-property scoping. It does not, and the label must resolve to
+  the tokens.
+
+```js
+await __cssReady;
+__probe('inline-light')       // { background, color }
+__rowBackground('data-even')  // the <tr> fill
+__bareTypeSelectors()
+__selectorsContaining('rgb(2"]')
+```
+
+| Check | Expected |
+|---|---|
+| `#inline-light`, inline `rgb(245, 245, 245)` | `--bg-tertiary`, `--text-main` |
+| `#inline-dark`, inline `rgb(20, 20, 20)` | also `--bg-tertiary` — prefix matching cannot tell it from `rgb(200, …)`; it stays dark |
+| Even row of a layout table (no `thead`, no role) | not striped, the table's `--bg-secondary` |
+| Even row of a `thead` table or `[role="grid"]` | `--bg-row-alt` |
+| `.MuiFormLabel-root` | `--bg-primary` fill, `--text-muted` text |
+| `aria-expanded="true"` trigger | no card fill — the attribute marks the control, not the panel |
+| `aria-selected="true"` item | `--bg-secondary` |
+| `__bareTypeSelectors()` | empty |
+| any `background-color: rgb(2` prefix selector | none |
+
+The two inline cases resolve to `--bg-tertiary` rather than section 18's
+`--bg-secondary`: section 23 carries a prefix block at the same specificity
+(0,2,1), later in the file, so it wins on source order.
+
+Known and not yet fixed: section 18 still lists the **shorthand** prefix
+`[style*="background: rgb(2"]`, which has the same over-breadth as the removed
+`background-color` one. `__selectorsContaining('rgb(2"]')` reports it.
+
 ## fixture-perf.html
 
 Measures what the grade and stream passes cost on a large page.
@@ -208,9 +256,9 @@ Toggling `display` does not force it either, because an inherited property
 like `color` resolves against an ancestor the toggle never dirties.
 
 `restyle.js` is the answer; see below. **Any assertion reading a computed
-style should go through it.** The fixtures that currently do are
-`fixture-focus.html` and `fixture-hover.html`; the others read computed styles
-too and should be moved over the next time they are touched.
+style should go through it.** The fixtures that currently do are accent,
+calendar, focus, hover, overlay, panel and scrim; the others read computed
+styles too and should be moved over the next time they are touched.
 
 ## fixture-popup.html
 
@@ -242,8 +290,8 @@ token, so the two cannot drift apart.
 | The toggle | enabled either way |
 | `.toggle-title` | labels `darkToggle`, so the text is a hit target |
 | Status text | carries `aria-live="polite"` |
-| Rating prompt | shown, pointing at `/detail/<runtime.id>/reviews` |
-| Rating prompt under `?noid` | hidden — an unpacked build has no id and must not link to `/detail/undefined/reviews` |
+| Rating prompt | shown, a static href to `chromewebstore.google.com/detail/<slug>/ogkjalalkednannikfgjhcnmgcepkeip` |
+| Rating prompt under `?noid` | unchanged — still shown, still pointing at the published listing |
 | Rating prompt colour | at least 4.5:1 |
 
 The title check matters beyond looks. A gradient clipped to text needs a
@@ -260,9 +308,13 @@ tag check is for — it is the cheapest possible canary for "the script ran".
 `?offscope` makes the stubbed `tabs.query` return an empty list, which is how
 the popup concludes the tab is out of scope. Without it that branch is never
 exercised. `?noid` drops `chrome.runtime.id` from the stub, which is what an
-unpacked build looks like — the rating prompt reads that id to build its link
-and has to stay hidden rather than send anyone to a listing that is not this
-one.
+unpacked build looks like. The rating link used to be assembled from that id,
+and an unpacked build gets a locally generated one, so every development
+install linked to a listing that does not exist. The href is written out in
+`popup.html` now, and the scenario asserts the link is unaffected by the id's
+absence (`rateReachesStore`) rather than hidden by it.
+
+`__probe()` is async here, because it waits for the popup frame; `await` it.
 
 ## fixture-surfaces.html
 
@@ -972,7 +1024,8 @@ renders, so the assertions keep their meaning if the palette is retuned.
 
 ## A note on caching
 
-Both fixtures inject `dark-mode.css` with a timestamp query, because
-`python3 -m http.server` lets the browser cache it and you would otherwise be
-testing a stale stylesheet without any sign that anything was wrong.
-`fixture-stream.html` does the same for `content.js`.
+Every fixture loads the files under test — `dark-mode.css`, `content.js`,
+`accent.js`, `popup.html` — with a timestamp query, because
+`python3 -m http.server` lets the browser cache them and you would otherwise
+be testing a stale copy without any sign that anything was wrong. That covers
+the assets only; see **A note on fixture HTML caching** for the page itself.

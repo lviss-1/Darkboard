@@ -6,3 +6,7 @@
 # whole extension per release — and a stale one, since the zip is usually rebuilt
 # after the commit that carries it.
 darkboard-*.zip
+
+# Scratch copies for the ?impl= / ?css= before-and-after comparisons described
+# in test/README.md. Always derived from git, never meant to be committed.
+test/.tmp-*

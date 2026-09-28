@@ -9,7 +9,7 @@
  *   2. Read chrome.storage for the authoritative value and correct the gate
  *      if the mirror was stale.
  *   3. Start the DOM-mutating enhancements only when dark mode is actually on.
- *   4. Listen for toggle messages from the popup (cross-tab sync).
+ *   4. Listen for toggle messages relayed by background.js (cross-tab sync).
  *   5. Observe <html> attribute changes to keep the toggle in sync
  *      if another script removes our attribute.
  */

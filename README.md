@@ -5,9 +5,9 @@ Dark mode for Blackboard Ultra. One install, zero configuration, zero flash of w
 <img width="1280" height="800" alt="online iona edu_ultra_institution-page" src="https://github.com/user-attachments/assets/53db7d69-ec29-4e1e-8554-7d96f5aa702f" />
 
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.2.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.2.1-blue?style=flat-square)
 
 ## The problem
 
@@ -47,7 +47,7 @@ Manifest V3, vanilla JS content script + background service worker, `chrome.stor
 
 ## Install
 
-**From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)
+**From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
 
 **From source:**
 ```

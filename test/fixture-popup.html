@@ -12,7 +12,7 @@
 </head>
 <body>
 
-  <iframe id="popup" width="320" height="420" style="border: 0"></iframe>
+  <iframe id="popup" width="320" height="600" style="border: 0"></iframe>
 
   <script>
     // popup.js calls chrome.runtime.getManifest() at the top level, so the page
@@ -20,19 +20,34 @@
     // srcdoc allows a stub to be injected ahead of it. srcdoc resolves relative
     // URLs against this document, so <base> is what keeps the icon, fonts and
     // script pointing at the repo root.
-    // ?offscope makes the stubbed tabs.query come back empty, which is how the
-    // popup decides the active tab is not one the extension themes. Without it
-    // the out-of-scope branch is never exercised.
-    const OFF_SCOPE = new URLSearchParams(location.search).has('offscope');
-    const NO_ID = new URLSearchParams(location.search).has('noid');
+    // ?site= picks what the active tab is, which is how the popup decides
+    // what to show under the toggle:
+    //   static     an Iona page the manifest covers (the default)
+    //   granted    another school the user has enabled; beta panel + remove
+    //   candidate  another school's Blackboard, not enabled; the enable button
+    //   other      not Blackboard at all; the scope note
+    // ?offscope is kept as the old spelling of ?site=other.
+    const params = new URLSearchParams(location.search);
+    const SITE = params.get('site') || (params.has('offscope') ? 'other' : 'static');
+    const NO_ID = params.has('noid');
+    const TAB_URL = {
+      static: 'https://online.iona.edu/ultra/stream',
+      granted: 'https://learn.example.edu/ultra/stream',
+      candidate: 'https://learn.example.edu/ultra/course',
+      other: 'https://example.com/',
+    }[SITE];
 
-    // The stub has to answer everything popup.js touches at load. It now reads
-    // content_scripts[0].matches to learn the host patterns and calls
-    // chrome.tabs.query with them; either one missing throws at the top level
-    // and takes the whole popup script with it, which would leave every
-    // assertion below testing a blank page rather than a popup.
+    // The stub has to answer everything popup.js touches at load: the
+    // manifest's content_scripts[0].matches, chrome.tabs.query both with and
+    // without those patterns, and chrome.permissions.contains. Any one missing
+    // throws and takes the whole popup script with it, which would leave every
+    // assertion below testing a blank page rather than a popup. tabs.query
+    // answers a callback or a promise because popup.js uses both forms.
+    // Under static, the URL-filtered query matches; under anything else it
+    // comes back empty, which is what Chrome does for a tab off those patterns.
     const STUB = `<base href="../">
       <script>
+        window.__permissionCalls = [];
         window.chrome = {
           runtime: {
             getManifest: () => ({
@@ -49,7 +64,18 @@
             id: ${NO_ID ? 'undefined' : "'ogkjalalkednannikfgjhcnmgcepkeip'"},
           },
           storage: { local: { get: (k, cb) => cb({}), set() {} } },
-          tabs: { query: (q, cb) => cb(${OFF_SCOPE ? '[]' : '[{ id: 1 }]'}) },
+          tabs: {
+            query: (q, cb) => {
+              const hit = !q.url || ${JSON.stringify(SITE)} === 'static';
+              const tabs = hit ? [{ id: 1, url: ${JSON.stringify(TAB_URL)} }] : [];
+              return cb ? cb(tabs) : Promise.resolve(tabs);
+            },
+          },
+          permissions: {
+            contains: () => Promise.resolve(${JSON.stringify(SITE)} === 'granted'),
+            request: (p) => { window.__permissionCalls.push(['request', p]); return Promise.resolve(true); },
+            remove: (p) => { window.__permissionCalls.push(['remove', p]); return Promise.resolve(true); },
+          },
         };
       <\/script>`;
 
@@ -124,6 +150,49 @@
         rateReachesStore: /^https:\/\/chromewebstore\.google\.com\/detail\/[^/]+\/ogkjalalkednannikfgjhcnmgcepkeip/
           .test(doc.getElementById('rateLink').getAttribute('href') || ''),
         rateColor: colorOf('.rate-link'),
+
+        // The site panel. Contrast is measured against what is actually
+        // behind each part: the panel surface for text, the popup background
+        // for the button's edge.
+        site: (() => {
+          const panel = doc.getElementById('sitePanel');
+          const action = doc.getElementById('siteAction');
+          const report = doc.getElementById('siteReport');
+          const style = (el) => win.getComputedStyle(el);
+          const surface = style(panel).backgroundColor;
+          const fill = style(action).backgroundColor;
+          const actionBg = fill === 'rgba(0, 0, 0, 0)' ? surface : fill;
+          return {
+            panelHidden: panel.hidden,
+            title: doc.getElementById('siteTitle').textContent,
+            detail: doc.getElementById('siteDetail').textContent,
+            actionHidden: action.hidden,
+            actionLabel: action.textContent,
+            reportHidden: report.hidden,
+            reportHref: report.getAttribute('href'),
+            titleContrast: __contrast(style(doc.getElementById('siteTitle')).color, surface),
+            detailContrast: __contrast(style(doc.getElementById('siteDetail')).color, surface),
+            actionLabelContrast: __contrast(style(action).color, actionBg),
+            actionEdgeContrast: __contrast(style(action).borderTopColor, surface),
+            reportContrast: __contrast(style(report).color, surface),
+          };
+        })(),
+      };
+    };
+
+    // Clicks the site panel's button and reports what the popup asked Chrome
+    // for and what it shows afterwards. The stub grants and removes every time.
+    window.__clickSiteAction = async function () {
+      const doc = await window.__ready;
+      doc.getElementById('siteAction').click();
+      await new Promise(r => setTimeout(r, 50));
+      return {
+        calls: doc.defaultView.__permissionCalls,
+        title: doc.getElementById('siteTitle').textContent,
+        detail: doc.getElementById('siteDetail').textContent,
+        actionHidden: doc.getElementById('siteAction').hidden,
+        actionLabel: doc.getElementById('siteAction').textContent,
+        pills: [...doc.querySelectorAll('.scope-pill')].map(el => el.textContent.trim()),
       };
     };
   </script>

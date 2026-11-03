@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Blackboard Dark Mode - DarkBoard",
   "version": "1.2.1",
-  "description": "Dark mode for Blackboard Ultra at Iona University. No setup, no white flash, just a readable LMS at 2am.",
+  "description": "Dark mode for Blackboard Ultra. Built at Iona University, in beta for other schools. No white flash, just a readable LMS at 2am.",
 
   "icons": {
     "16":  "icons/icon16.png",
@@ -21,12 +21,17 @@
 
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
 
   "host_permissions": [
     "https://online.iona.edu/*",
     "https://*.blackboardcdn.com/*"
+  ],
+
+  "optional_host_permissions": [
+    "https://*/*"
   ],
 
   "content_scripts": [

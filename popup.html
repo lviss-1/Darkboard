@@ -267,6 +267,78 @@
 
     .scope-note[hidden] { display: none; }
 
+    /* ── Site panel ─────────────────────────────────────────────
+       Enabling another school, or that school's beta status. The fill is
+       --c-accent, which is only 1.74:1 against the popup, so the button's
+       edge is drawn in --c-accent-light (6.00:1) to meet the 3:1 a control
+       boundary needs. */
+    .site-panel {
+      margin: 12px 16px 0;
+      padding: 11px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+    }
+
+    .site-panel[hidden],
+    .site-action[hidden],
+    .site-report[hidden],
+    .scope-info[hidden] { display: none; }
+
+    .site-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--c-text);
+      letter-spacing: 0.02em;
+      overflow-wrap: anywhere;
+    }
+
+    .site-detail {
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--c-muted);
+      letter-spacing: 0.03em;
+    }
+
+    .site-action {
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--c-accent-light);
+      border-radius: 8px;
+      background: var(--c-accent);
+      color: var(--c-text);
+      font: 500 11px 'DM Mono', monospace;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .site-action:hover { background: var(--c-accent-2); }
+
+    .site-action.secondary { background: transparent; }
+
+    .site-action.secondary:hover { background: var(--c-border); }
+
+    .site-action:disabled { cursor: progress; opacity: 0.7; }
+
+    .site-action:focus-visible,
+    .site-report:focus-visible {
+      outline: 2px solid var(--c-accent-light);
+      outline-offset: 2px;
+    }
+
+    .site-report {
+      display: block;
+      margin-top: 10px;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-align: center;
+      color: var(--c-accent-light);
+    }
+
     /* ── Rating prompt ──────────────────────────────────────────
        A quiet line, not a nag: no modal, no dismissal state to persist,
        and it sits below the fold of the toggle so it never competes with
@@ -322,7 +394,8 @@
       .track::after,
       .status-dot,
       .status-text,
-      .rate-link {
+      .rate-link,
+      .site-action {
         transition: none;
       }
     }
@@ -344,7 +417,7 @@
     <div class="toggle-row">
       <div>
         <label class="toggle-title" for="darkToggle">DARK MODE</label>
-        <div class="toggle-subtitle">All Blackboard Ultra pages</div>
+        <div class="toggle-subtitle">All enabled schools</div>
       </div>
       <label class="switch">
         <input type="checkbox" id="darkToggle" aria-label="Toggle dark mode" />
@@ -362,10 +435,19 @@
     The switch still applies to your Blackboard tabs.
   </p>
 
-  <div class="scope-info">
-    <div class="scope-pill">online.iona.edu</div>
-    <div class="scope-pill">Embedded frames</div>
-  </div>
+  <!-- Filled by popup.js for the active tab: enable a school, or its beta
+       status and a way to remove it. -->
+  <section class="site-panel" id="sitePanel" aria-live="polite" hidden>
+    <p class="site-title" id="siteTitle"></p>
+    <p class="site-detail" id="siteDetail"></p>
+    <button class="site-action" id="siteAction" type="button" hidden></button>
+    <a class="site-report" id="siteReport" target="_blank" rel="noopener noreferrer" hidden
+       href="https://github.com/lviss-1/Darkboard/issues/new?template=school-report.md">
+      REPORT A PROBLEM AT THIS SCHOOL
+    </a>
+  </section>
+
+  <div class="scope-info" id="scopeInfo" hidden></div>
 
   <!-- The listing URL is written out rather than assembled at runtime. The old
        version built it from chrome.runtime.id, which is only the published id

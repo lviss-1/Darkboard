@@ -283,10 +283,14 @@ token, so the two cannot drift apart.
 | Every element carrying its own text | at least 11px |
 | Logo | an `img` whose src ends `icon48.png` |
 | Title | `-webkit-text-fill-color` not transparent |
-| Scope pills | contain `online.iona.edu` |
+| Scope pills | `online.iona.edu` and `Embedded frames` (static); the school's host and `Beta` (granted); none otherwise |
+| Site panel, `?site=candidate` | shown, `ENABLE ON THIS SCHOOL`; `__clickSiteAction()` requests exactly `https://learn.example.edu/*` and switches to the beta panel |
+| Site panel, `?site=granted` | shown, `REMOVE THIS SCHOOL` and the report link; `__clickSiteAction()` removes exactly that origin and says to reload |
+| Site panel, `static` / `other` | hidden |
+| Site panel contrast | title, detail, report link, button label at least 4.5:1; button edge vs panel at least 3:1 |
 | Whole popup | no emoji |
 | Version tag | non-empty — proof `popup.js` survived load at all |
-| Out-of-scope note | hidden by default, shown under `?offscope` |
+| Out-of-scope note | shown under `?site=other` (or the old `?offscope`) only |
 | The toggle | enabled either way |
 | `.toggle-title` | labels `darkToggle`, so the text is a hit target |
 | Status text | carries `aria-live="polite"` |
@@ -298,16 +302,19 @@ The title check matters beyond looks. A gradient clipped to text needs a
 transparent fill, so if the gradient ever fails to paint the title disappears
 entirely.
 
-**The stub has to answer everything `popup.js` touches at load.** It now reads
-`content_scripts[0].matches` out of the manifest and calls `chrome.tabs.query`
-with them to decide whether the active tab is one the extension themes; either
-one missing throws at the top level and takes the whole popup script with it,
-leaving every assertion above measuring a blank page. That is what the version
-tag check is for — it is the cheapest possible canary for "the script ran".
+**The stub has to answer everything `popup.js` touches at load.** It reads
+`content_scripts[0].matches` out of the manifest, calls `chrome.tabs.query`
+with and without them (callback and promise forms), and calls
+`chrome.permissions.contains`. Any one missing throws and takes the whole
+popup script with it, leaving every assertion above measuring a blank page.
+That is what the version tag check is for: it is the cheapest possible canary
+for "the script ran".
 
-`?offscope` makes the stubbed `tabs.query` return an empty list, which is how
-the popup concludes the tab is out of scope. Without it that branch is never
-exercised. `?noid` drops `chrome.runtime.id` from the stub, which is what an
+`?site=static|granted|candidate|other` picks the active tab: an Iona page, a
+school the user enabled, another school's Blackboard not yet enabled, or
+`example.com`. The URL-filtered `tabs.query` matches only under `static`, which
+is how Chrome answers for a tab off the manifest's patterns.
+`?noid` drops `chrome.runtime.id` from the stub, which is what an
 unpacked build looks like. The rating link used to be assembled from that id,
 and an unpacked build gets a locally generated one, so every development
 install linked to a listing that does not exist. The href is written out in

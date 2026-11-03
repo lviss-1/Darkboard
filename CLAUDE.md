@@ -1,7 +1,9 @@
 # DarkBoard — working notes for Claude
 
 A Manifest V3 Chrome extension that themes Blackboard Ultra dark at
-`https://online.iona.edu/*` and `https://*.blackboardcdn.com/*`. Chrome only.
+`https://online.iona.edu/*` and `https://*.blackboardcdn.com/*` (static), plus
+any other school the user enables from the popup (beta, opt-in per site; see
+**Other schools**). Chrome only.
 No build step, no npm, no bundler: plain files, loaded unpacked from the repo
 root. Published on the Chrome Web Store as id `ogkjalalkednannikfgjhcnmgcepkeip`;
 the current version is whatever `manifest.json` says.
@@ -19,8 +21,9 @@ lives in `test/README.md` and in the rationale comments above each block of
 | `src/content.js` | Gate, preference mirror, observers, inline-style passes, grade colorizer (~1,030 lines) |
 | `src/dark-mode.css` | The theme: palette tokens, then sections 1–36 (~2,280 lines, ~340 `!important`) |
 | `src/accent.js` | Pure OKLCH maths deriving the accent ramp from one institution colour. Also `require`d by Node |
-| `src/background.js` | Service worker: relays toggles to every Blackboard tab, paints the toolbar badge, seeds the default on install |
-| `src/popup.js`, `popup.html` | Toggle UI, out-of-scope note, static rating link. Fonts in `src/fonts/` |
+| `src/background.js` | Service worker: keeps the `darkboard-sites` registration in step with granted schools, relays toggles to every themed tab, paints the toolbar badge, seeds the default on install |
+| `src/popup.js`, `popup.html` | Toggle UI, per-tab site panel (enable / beta + remove / scope note), static rating link. Fonts in `src/fonts/` |
+| `.github/ISSUE_TEMPLATE/school-report.md` | The popup's "Report a problem" target for beta schools, with the diagnostic snippet. Not shipped |
 | `test/` | Browser fixtures, `accent.test.js` (Node), helpers `contrast.js` and `restyle.js`, and `README.md` (the reference) |
 | `test/grades/fixture-gradebook.html` | The one fixture shaped from real-page evidence. **The `/grades` directory name is load-bearing** |
 | `promo/*.html` | Store promo tiles rendered as pages, fonts base64-inlined, exported to JPEG/PNG in the browser |
@@ -48,7 +51,8 @@ preference changed while no tab of that origin was open; that costs one frame.
 
 **Toggle flow.** Popup `change` → `chrome.storage.local.set` +
 `runtime.sendMessage({ type: 'BB_DARK_MODE_TOGGLE', enabled })` → background
-`tabs.query({ url: BB_ORIGINS })` → `tabs.sendMessage` to each tab (all frames)
+`tabs.query({ url: siteMatches() })` (manifest matches ∪ granted schools) →
+`tabs.sendMessage` to each tab (all frames)
 → content listener updates `_darkEnabled`, the mirror, and the gate. The popup
 message never reaches content scripts directly; the relay is required.
 
@@ -104,6 +108,33 @@ a `window` property.
 **Background worker.** `restoreBadge()` runs at top level, on startup and on
 install (MV3 workers die after ~30 s idle). `onInstalled` seeds
 `darkModeEnabled: true` only if unset.
+
+**Other schools (beta).** `optional_host_permissions: ["https://*/*"]` plus
+the `scripting` permission; neither shows an install warning, so existing
+users are not re-prompted. Granted origins are the **only** record of enabled
+schools; nothing is kept in storage.
+- Popup (`resolveSite`) classifies the active tab: `static` (manifest covers
+  it) → pills only; `granted` (`permissions.contains`) → beta panel, remove
+  button, report link; `candidate` (https and path `/ultra…` or `/webapps…`)
+  → `ENABLE ON THIS SCHOOL`, which calls `permissions.request` for
+  `https://<host>/*` inside the click; `other` → the scope note.
+- Worker: `syncSiteScripts()` (serialised; top level and every
+  `permissions.onAdded/onRemoved`) rebuilds one registration, id
+  `darkboard-sites`, from granted `https://<host>/*` origins. Its js/css/runAt/
+  allFrames are read from the manifest's `content_scripts[0]`, so a school gets
+  exactly what Iona gets, at `document_start`. Origins the manifest already
+  covers (host-matched, so `x.blackboardcdn.com` counts) are filtered out,
+  because `content.js` throws on a second evaluation.
+- `onAdded` also injects the CSS and scripts into tabs of that school that are
+  already open, instead of reloading them, so unsaved work in another tab
+  survives. Removing a school does not un-theme open tabs; the popup says to
+  reload.
+- Chrome may close the popup during the permission prompt. That's why the
+  worker, not the popup, does the registering and injecting.
+- Verified live: `/ultra` on Iona's course outline; the button, grant,
+  `darkboard-sites` registration, in-place injection, restart and removal on
+  another school's public login page. Unverified: the theme on any other
+  school's logged-in pages (there is no tester at another school).
 
 ## Stylesheet map (`src/dark-mode.css`)
 
@@ -175,8 +206,9 @@ exceeds (0,3,x); those ID selectors make that claim inaccurate.
   that loads it more than once needs a fresh frame, as `fixture-fouc` does.
 
 Duplicated values — change every copy together:
-- Host patterns: `manifest.json` `host_permissions` and `content_scripts.matches`,
-  and `BB_ORIGINS` in `background.js`. (`popup.js` reads the manifest.)
+- Host patterns: `manifest.json` `host_permissions` and `content_scripts.matches`.
+  `background.js` and `popup.js` read the manifest at runtime; granted
+  schools live only in Chrome's permissions.
 - Iona maroon `#6f2c3e`: CSS `:root`, `accent.js` `INSTITUTIONS`,
   `background.js` badge (×2), `popup.html` `--c-accent`. The
   `[style*="#6f2c3e"]` selector in section 27 *matches* Blackboard's inline
@@ -200,6 +232,7 @@ How `content.js` finds anything in the DOM | Blackboard's real DOM differs from 
 A new inline-style pass | Add it inside `runStreamPass`'s disconnect window, give it a marker, add its revert to `stopEnhancements`, make it idempotent (mark + priority check)
 Observer config or debounce | Hidden tabs pause rAF; `MAX_ROOTS` widening; `characterData` is how Angular text rewrites are seen
 Host patterns, message type, storage key | Every copy listed above, the popup scope note, fixture stubs
+Anything that injects `content.js` (registration, `executeScript`) | It throws on a second evaluation: never inject where the manifest or `darkboard-sites` already has. `coveredByManifest` in `background.js` is the guard
 `popup.js` top level | The fixture stub must answer everything it calls at load, or the whole script dies and the fixture measures a blank page
 Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour changes want a version bump at release
 
@@ -224,7 +257,7 @@ Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour
 | `fixture-surfaces`, `fixture-panel` | Surface ladder tiers; ID-level panel header |
 | `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes; which elements hover; focus/selection/motion/scrollbar |
 | `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label |
-| `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>`; popup contrast/copy (`await __probe()`); scan cost (`__run`) |
+| `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo); popup contrast/copy (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`); scan cost (`__run`) |
 
 - **Before/after comparisons:** `git show HEAD:src/content.js > test/.tmp-old-content.js`
   then `?impl=.tmp-old-content.js` (fouc, perf, gradebook); or
@@ -282,9 +315,9 @@ is. Ask when a decision is the user's to make.
 Known, deliberate limitations: a bare text node beside an icon counts as
 icon-only (`:only-child` ignores text); `div[tabindex="0"]` gets no hover
 (it matched page-sized scroll regions); inline-style prefix catchers cannot
-tell `rgb(20, …)` from `rgb(200, …)`; only Iona is in `INSTITUTIONS` —
-multi-institution support (broader host patterns, logo-derived accent cached
-like the mirror) is the planned v2.
+tell `rgb(20, …)` from `rgb(200, …)`; only Iona is in `INSTITUTIONS`, so
+every other school gets `DEFAULT_BASE` indigo with a maroon-cast `--bg-hover`.
+A logo-derived accent cached like the mirror is the planned next step.
 
 ## Keeping this file true
 

@@ -157,7 +157,19 @@ console.log('\nsource resolution');
 if (A.baseFor('online.iona.edu') !== '#6f2c3e') fail('Iona is not pinned to #6f2c3e');
 if (A.baseFor('blackboard.someother.edu') !== null) fail('an unknown host should resolve to null');
 if (A.baseFor('constructor') !== null) fail('inherited Object properties leak through baseFor');
-console.log('  checked 3');
+
+// Every school outside the map wears the default, so it must derive a full
+// ramp, and it must not read as Iona's maroon on someone else's pages.
+const fallback = derive(A.DEFAULT_BASE);
+if (!fallback) {
+  fail(`DEFAULT_BASE ${A.DEFAULT_BASE} derives nothing`);
+} else {
+  check('DEFAULT_BASE', A.DEFAULT_BASE, fallback);
+  const apart = dE(A.DEFAULT_BASE, A.baseFor('online.iona.edu'));
+  console.log(`  DEFAULT_BASE ${A.DEFAULT_BASE} is ΔE ${apart.toFixed(3)} from Iona`);
+  if (apart < 0.15) fail(`DEFAULT_BASE is only ΔE ${apart.toFixed(3)} from Iona maroon`);
+}
+console.log('  checked 5');
 
 // ── 6. the stylesheet and the module must agree on the surfaces ───────────
 // The ring is only trustworthy if this list is the real ladder.

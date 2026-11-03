@@ -5,9 +5,9 @@ Dark mode for Blackboard Ultra. One install, zero configuration, zero flash of w
 <img width="1280" height="800" alt="online iona edu_ultra_institution-page" src="https://github.com/user-attachments/assets/53db7d69-ec29-4e1e-8554-7d96f5aa702f" />
 
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.2.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.3.0-blue?style=flat-square)
 
 ## The problem
 
@@ -41,13 +41,14 @@ Manifest V3, vanilla JS content script + background service worker, `chrome.stor
 
 ## Known scope / roadmap
 
-- `host_permissions` is currently scoped to `online.iona.edu` and `*.blackboardcdn.com` — one university. Broadening that match pattern to every Blackboard-hosted institution is the planned v2, and the natural next step for wider adoption.
+- **Other schools (beta).** Iona (`online.iona.edu`) is built in. Any other school is opt-in: open your school's Blackboard, click the DarkBoard icon, and choose **Enable on this school**. Chrome asks for access to that one site only, and nothing else is requested. The theme is built and tested on Iona's Blackboard, so other schools get a neutral indigo accent and a **Report a problem** link. If something is hard to read, [open an issue](https://github.com/lviss-1/Darkboard/issues/new?template=school-report.md).
+- **Next:** derive each school's accent from its own logo, cached per site so the first frame is still correct.
 
 - `googlef3331e5ec48014da.html` at the repo root is a Google Search Console verification token, not a stray file. Deleting it breaks domain verification.
 
 ## Install
 
-**From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/dark-mode-for-blackboard/ogkjalalkednannikfgjhcnmgcepkeip)
+**From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
 
 **From source:**
 ```
@@ -57,4 +58,4 @@ Manifest V3, vanilla JS content script + background service worker, `chrome.stor
 4. Click "Load unpacked" and select the cloned folder
 ```
 
-*Built by an Iona University student for Iona University students. Currently scoped exclusively to Iona's Blackboard instance.*
+*Built by an Iona University student for Iona University students, and now open to other schools in beta.*

@@ -9,7 +9,7 @@
  *   2. Read chrome.storage for the authoritative value and correct the gate
  *      if the mirror was stale.
  *   3. Start the DOM-mutating enhancements only when dark mode is actually on.
- *   4. Listen for toggle messages from the popup (cross-tab sync).
+ *   4. Listen for toggle messages relayed by background.js (cross-tab sync).
  *   5. Observe <html> attribute changes to keep the toggle in sync
  *      if another script removes our attribute.
  */
@@ -109,13 +109,17 @@ function whenDomReady(fn) {
 // will need an image load and therefore a cached value to paint from on the
 // first frame — the localStorage mirror above is the pattern to reuse.
 //
-// Everything here is best-effort. The stylesheet's own :root values are the
-// fallback, so an unknown host, an unusable brand colour, or this file failing
-// to load at all leaves the theme exactly as it ships.
+// A host outside the curated map gets DEFAULT_BASE rather than nothing: the
+// stylesheet's :root values are Iona maroon, which is wrong on any other
+// school's pages.
+//
+// Everything here is best-effort. The stylesheet's own :root values remain the
+// last fallback, so an unusable brand colour or accent.js failing to load
+// leaves the theme exactly as it ships.
 function applyAccent() {
   if (typeof DarkboardAccent === 'undefined') return;
 
-  const base = DarkboardAccent.baseFor(location.hostname);
+  const base = DarkboardAccent.baseFor(location.hostname) ?? DarkboardAccent.DEFAULT_BASE;
   if (!base) return;
 
   const ramp = DarkboardAccent.derive(base);

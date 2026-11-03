@@ -673,7 +673,7 @@ readable ships.
 | Hue / saturation / lightness sweep | 1,080 colours — 874 derive, 206 correctly rejected |
 | Rejections | `#262626`, black, white, mid grey, malformed input, `null` |
 | Iona must not move | derived ramp vs the shipped one, in OKLab ΔE |
-| Source resolution | the curated map, including prototype-chain leaks |
+| Source resolution | the curated map, including prototype-chain leaks; `DEFAULT_BASE` derives a full ramp and sits ≥ ΔE 0.15 from Iona maroon |
 | Surfaces agree with the CSS | the ring is only trustworthy if this list is the real ladder |
 
 ### Three bugs this caught that a fixture would not have
@@ -704,7 +704,7 @@ it ships.
 | Scenario | Expected |
 |---|---|
 | Curated host | derived ramp on `<html>`, primary button wears `rgb(111, 44, 62)` |
-| Unknown host | nothing written inline; CSS defaults stand |
+| Unknown host | `DEFAULT_BASE` ramp inline on `<html>` (`--accent-primary: #4a5a8a`), primary button wears `rgb(74, 90, 138)` |
 | `accent.js` absent entirely | `content.js` survives, gate still goes on, CSS defaults stand |
 
 `location` is non-configurable, so rather than mocking the hostname the fixture

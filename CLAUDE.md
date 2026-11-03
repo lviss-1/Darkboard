@@ -89,11 +89,15 @@ directly; block hosts get a wrapper `span.darkboard-pill` and **no mark of
 their own**. `SKIP_HOSTS` (script, style, textarea…) are never touched.
 
 **Accent.** `DarkboardAccent.baseFor(location.hostname)` looks up
-`INSTITUTIONS` (only `online.iona.edu` → `#6f2c3e`) → `derive()` returns eight
+`INSTITUTIONS` (only `online.iona.edu` → `#6f2c3e`); any other host, including
+`localhost` fixtures that load `accent.js`, gets `DEFAULT_BASE` (`#4a5a8a`, a
+neutral indigo, so other schools don't wear Iona maroon) → `derive()` returns eight
 custom properties (`--accent-primary/hover/deep/edge`, `--text-on-accent`,
 `--border-focus`, `--accent-glow`, `--shadow-maroon`) or `null` if the colour
-cannot produce an accessible ramp → written inline on `<html>`. Any failure
-leaves the CSS `:root` values, which are the shipped theme. `DarkboardAccent`
+cannot produce an accessible ramp → written inline on `<html>`. A `null` ramp
+or a missing `accent.js` leaves the CSS `:root` values (Iona maroon).
+`--bg-hover` is a surface token, not part of the ramp, so it stays maroon-cast
+on every host. `DarkboardAccent`
 is a top-level `const`: shared across content scripts' lexical scope, **not**
 a `window` property.
 

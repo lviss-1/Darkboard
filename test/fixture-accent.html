@@ -117,13 +117,16 @@
       if (!iona.gated) failures.push('curated host: the gate did not go on');
       iona.cleanup();
 
-      // 2. An unknown host must fall through to the stylesheet's own values,
-      //    not to nothing.
+      // 2. An unknown host gets the neutral DEFAULT_BASE ramp, not Iona's
+      //    maroon from the stylesheet. localhost is an unknown host.
       const other = await scenario({ registerHost: false });
       results.unknownHost = other.computed;
-      if (other.inlineAccent) failures.push('unknown host: wrote an inline accent it should not have');
-      if (other.computed.accent !== '#6f2c3e') {
-        failures.push('unknown host: fell back to ' + other.computed.accent + ', expected the CSS default');
+      results.unknownButtonFill = other.buttonFill;
+      if (other.inlineAccent !== '#4a5a8a') {
+        failures.push('unknown host: inline accent is "' + other.inlineAccent + '", expected #4a5a8a');
+      }
+      if (other.buttonFill !== 'rgb(74, 90, 138)') {
+        failures.push('unknown host: primary button is ' + other.buttonFill + ', expected rgb(74, 90, 138)');
       }
       if (!other.gated) failures.push('unknown host: the gate did not go on');
       other.cleanup();

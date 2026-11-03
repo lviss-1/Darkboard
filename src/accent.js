@@ -231,7 +231,14 @@ const DarkboardAccent = (() => {
   const baseFor = (hostname) =>
     Object.prototype.hasOwnProperty.call(INSTITUTIONS, hostname) ? INSTITUTIONS[hostname] : null;
 
-  return { derive, baseFor, contrast, toLCH, fromLCH, labelFor, SURFACES, INSTITUTIONS };
+  // What a school outside INSTITUTIONS gets until its own colour can be read.
+  // The stylesheet's :root values are Iona maroon, so falling through to them
+  // would put another university's colours on every page. A muted indigo
+  // belongs to nobody and derives a full ramp; accent.test.js holds it to
+  // both of those.
+  const DEFAULT_BASE = '#4a5a8a';
+
+  return { derive, baseFor, contrast, toLCH, fromLCH, labelFor, SURFACES, INSTITUTIONS, DEFAULT_BASE };
 })();
 
 // Read by test/accent.test.js, which evaluates this file directly. Guarded so

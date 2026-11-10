@@ -82,6 +82,69 @@ Expected:
 | Progress fill vs track | different backgrounds |
 | Control text and all three guards | `rgb(240, 238, 232)` |
 
+This bar is the generic shape: the role on the track and one fill child.
+Blackboard's learning-module bar is not, which is what `fixture-progress` covers.
+
+## fixture-progress.html
+
+Covers the progress-bar rules at the end of section 28. A user reported a
+learning module ("2 started | 4 not started") whose bar was maroon end to end.
+The screenshot sampled the track at exactly `#6f2c3e`, so one of our fill
+selectors was landing on the track itself. The old fill was "any child of a
+progress bar" (`[role="progressbar"] > *`, `[class*="progress-bar"] > *`). With
+the role or class on a wrapper, that child is the track. Section 3 then made the
+segment inside inherit the same maroon.
+
+**The real bar's markup has never been observed.** No account we have can see
+that module. Only the outline ancestors (`content-list-item
+makeStylescontentListItem-0-2-196 > makeStylesitemContainer-0-2-199`) were
+read from a live Iona course. The bars inside them are the plausible shapes,
+each a different way the old selectors could reach the track:
+
+| Bar | Shape |
+|---|---|
+| `reported` | `role` on a wrapper → track → one started segment (33%), the reported case |
+| `kebab` | `progress-bar` class on a wrapper, no role |
+| `camel` | JSS `makeStylesprogressBar-0-2-310`, which `progress-bar` never matched |
+| `segmented` | `role` on the track, one segment per state (completed, started, not started) |
+| `zero` | `aria-valuenow="0"`: the empty track is the wrapper's only child, so it looks like a fill |
+| `labelled` | a screen-reader label inside the bar, which must not take a fill |
+| `generic` | the `fixture-semantics` shape, as a guard |
+
+`?css=` swaps the stylesheet.
+
+```js
+await __cssReady;
+__probe().failures
+```
+
+Expected: `[]`. `__probe()` also returns each bar's booleans and the resolved
+`--accent-primary` / `--bg-tertiary`. With `?css=.tmp-old.css` (HEAD before this
+change), every bar except `generic` and `segmented.completedSolid` fails. The
+`reported` track and segment both read `rgb(111, 44, 62)`, which is the
+screenshot.
+
+| Element | Result |
+|---|---|
+| Track (any shape) | `rgb(43, 43, 53)`, `--bg-tertiary` |
+| Completed, or an unnamed fill | `rgb(111, 44, 62)`, no image |
+| Started | Diagonal `repeating-linear-gradient` of the accent over a 45% accent/track mix |
+| Not started | The track colour, no image |
+
+Measured (WCAG ratios): completed vs track 1.40:1, accent stripe vs the started
+base 1.22:1, started base vs track 1.15:1. The counts printed beside the bar
+carry the information, so the bar is supplementary rather than a 1.4.11
+graphic. On the live page Blackboard's own near-white segment border is what
+delineates it (sampled from the screenshot). If that border ever disappears,
+`--accent-edge` is the token to outline the fill with.
+
+A fill is recognised as an **empty** `div` or `span` inside a bar, and the track
+as whatever directly holds one. State comes from class names
+(`started` / `inProgress` → stripes; `notStarted` / `unstarted` / `remaining` →
+track). If Blackboard names its segments differently, started and completed
+both render solid. That still fixes the reported bug; they just aren't told
+apart.
+
 ## fixture-grades.html
 
 Covers which strings the colorizer treats as a grade, and how it stamps them.

@@ -227,6 +227,7 @@ A transparent/overlay rule | Sections 18, 26 (`[class*="bb-"]` matches `bb-offca
 A `:hover` or `:focus-within` rule | `:focus-within` propagates to every ancestor, so a flood *persists*. FullCalendar rows must not hover
 Section 8 buttons | Calendar day buttons (section 36), `svg:only-child` icon detection, anchors styled as buttons, the primary CTA rim
 A palette token | Every measured ratio in `test/README.md`, `accent.js` `SURFACES`, the `theme()` surface set in `content.js` (it skips surfaces the theme already painted)
+Progress-bar rules (end of section 28) | Never fill `> *` of a bar: with the role or class on a wrapper, that child is the track (the "all maroon" report). Fills are empty `div`/`span` leaves. Ultra's JSS classes are camelCase `makeStyles<name>-0-2-N`, so list `progressBar` beside `progress-bar` and never key on the `-0-2-N` suffix. `fixture-progress`
 Grade regexes or guards | Date/counter/progress words, heading exclusion, `/grades` path rule; both `fixture-grades.html` and `grades/fixture-gradebook.html`
 How `content.js` finds anything in the DOM | Blackboard's real DOM differs from every fixture except the gradebook one. Ask for a live-page diagnostic first
 A new inline-style pass | Add it inside `runStreamPass`'s disconnect window, give it a marker, add its revert to `stopEnhancements`, make it idempotent (mark + priority check)
@@ -257,6 +258,7 @@ Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour
 | `fixture-surfaces`, `fixture-panel` | Surface ladder tiers; ID-level panel header |
 | `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes; which elements hover; focus/selection/motion/scrollbar |
 | `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label |
+| `fixture-progress` | Progress-bar track vs fill vs started stripes across plausible shapes (the real learning-module bar was never observed) |
 | `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo); popup contrast/copy (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`); scan cost (`__run`) |
 
 - **Before/after comparisons:** `git show HEAD:src/content.js > test/.tmp-old-content.js`

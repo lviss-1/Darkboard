@@ -1915,7 +1915,26 @@ html[data-bb-dark] body [class*="dueSoon"] {
 
 /* Progress indicators — the fill has to read as distinct from the track,
    otherwise the universal rule renders both in the page background and the
-   bar disappears entirely. */
+   bar disappears entirely.
+
+   The fill used to be "any child of a progress bar" (`[role="progressbar"] >
+   *`, `[class*="progress-bar"] > *`). A learning module's bar puts the role
+   (or class) on a wrapper with the track one level down, so that painted the
+   TRACK maroon; section 3 then made the segment inside inherit the same
+   maroon, and the bar read as full whatever the progress. The only trace
+   left was Blackboard's own border on the segment.
+
+   Now only the innermost elements fill: an EMPTY element inside a bar is a
+   segment, and whatever directly holds one is the track. `:empty` is what
+   keeps a screen-reader label or an icon inside the bar from taking a fill.
+   The bar's real markup has not been observed (fixture-progress covers the
+   plausible shapes), and Ultra's JSS class names are camelCase
+   (`makeStylesprogressBar-0-2-N`), so both spellings are listed and the
+   per-build `-0-2-N` suffix is never relied on.
+
+   Specificity: the segment rule is (0,3,3) and the track rule (0,3,3), both
+   above the (0,2,x) rules elsewhere in this section; the state rules below
+   add attribute selectors and win over the plain fill. */
 html[data-bb-dark] body [role="progressbar"],
 html[data-bb-dark] body progress,
 html[data-bb-dark] body [class*="progress-track"],
@@ -1925,12 +1944,43 @@ html[data-bb-dark] body [class*="MuiLinearProgress-root"] {
   border: none !important;
 }
 
-html[data-bb-dark] body [role="progressbar"] > *,
+html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]):has(> :is(div, span):empty),
+html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :has(> :is(div, span):empty) {
+  background-color: var(--bg-tertiary) !important;
+}
+
+html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty,
 html[data-bb-dark] body [class*="progress-fill"],
 html[data-bb-dark] body [class*="ProgressFill"],
-html[data-bb-dark] body [class*="progress-bar"] > *,
 html[data-bb-dark] body [class*="MuiLinearProgress-bar"] {
   background-color: var(--accent-primary) !important;
+}
+
+/* Blackboard counts "started" apart from "completed", and the bar should
+   too. A flat mid-shade sits only ~3 L* above the track and barely reads,
+   and a lighter one would make started look further along than completed,
+   so started is striped: the accent over a dimmer mix of accent and track.
+   The pattern also keeps the state from resting on colour alone (1.4.1).
+   Tokens only, so another school's indigo ramp carries through. */
+html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty:is([class*="started" i], [class*="in-progress" i], [class*="inProgress" i]):not([class*="notstarted" i], [class*="not-started" i], [class*="not_started" i], [class*="unstarted" i]) {
+  background-color: color-mix(in oklab, var(--accent-primary) 45%, var(--bg-tertiary)) !important;
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--accent-primary) 0 4px,
+    transparent 4px 8px
+  ) !important;
+}
+
+/* A segment for work not yet started is the track showing through. */
+html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty:is([class*="notstarted" i], [class*="not-started" i], [class*="not_started" i], [class*="unstarted" i], [class*="remaining" i]) {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* With nothing started, the track is the wrapper's only child and has no
+   children of its own, so it is empty and looks exactly like a fill. The
+   wrapper's aria-valuenow is the only thing that tells them apart. */
+html[data-bb-dark] body [role="progressbar"][aria-valuenow="0"] > :is(div, span):empty:only-child {
+  background-color: var(--bg-tertiary) !important;
 }
 
 html[data-bb-dark] body progress::-webkit-progress-bar {

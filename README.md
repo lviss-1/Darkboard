@@ -1,61 +1,42 @@
 # DarkBoard
 
-Dark mode for Blackboard Ultra. One install, zero configuration, zero flash of white.
+Dark mode for Blackboard Ultra. Install it once and every page is dark from the first frame.
 
-<img width="1280" height="800" alt="online iona edu_ultra_institution-page" src="https://github.com/user-attachments/assets/53db7d69-ec29-4e1e-8554-7d96f5aa702f" />
+<img width="1280" height="800" alt="DarkBoard on Iona's Blackboard" src="https://github.com/user-attachments/assets/53db7d69-ec29-4e1e-8554-7d96f5aa702f" />
 
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)** · 100+ users
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
-![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.3.0-blue?style=flat-square)
+## Why
 
-## The problem
+Blackboard Ultra has no dark mode and no way to add one. Staring at a white page for hours is rough on your eyes, especially at night, which is when most of us are on it. So I fixed it for myself and put it up for everyone else.
 
-Blackboard Ultra ships no dark mode and gives students no way to add one. Anthology builds for universities, not students, so it's never been prioritized. Staring at a blinding white LMS for hours causes real eye strain — especially at night, which is when most students are actually using it.
+## What was hard
 
-## What it does
+Theming a page you don't control is a few separate problems, and "write some dark CSS" is the easy one.
 
-Install DarkBoard once and every page on your school's Blackboard automatically switches to a dark theme. No settings to configure, no theme to pick — it just works, immediately, on first load.
+- **The white flash.** Extensions that theme after the page paints flash white first. DarkBoard injects its CSS at `document_start` and stamps `[data-bb-dark]` on `<html>` before the first paint.
+- **React undoing my work.** Blackboard re-renders as you navigate and strips what I add. A `MutationObserver` puts the theme back whenever that happens.
+- **Tabs disagreeing.** Toggle dark mode in one tab and the rest should follow. A background service worker pushes the change to every open Blackboard tab, so nothing polls storage. MV3 workers get shut down after about 30 seconds idle, so it rebuilds its state when it wakes. The preference itself lives in `chrome.storage.local`.
+- **Iframes.** A lot of Blackboard lives in iframes that ignore the parent page's styles. `all_frames: true` runs the content script in every one.
 
-## Technical highlights
+There's also a grade colorizer that turns grades green, yellow or red. CSS can't do arithmetic, so the content script computes the percentage and sets a `data-grade-status` attribute for the stylesheet to key off. It's the smallest feature and my favorite.
 
-The interesting part of this project isn't "I added dark CSS" — it's three specific problems that only show up once you try to theme a page you don't control:
+## Other schools (beta)
 
-**Zero flash of white.** Most dark-mode extensions apply their theme after the page paints, so you see a white flash before it switches. DarkBoard injects CSS at `document_start` and stamps a `[data-bb-dark]` attribute onto `<html>` before first paint, so the dark theme is present from the first frame.
+Iona (`online.iona.edu`) works out of the box. For any other school, open your Blackboard, click the DarkBoard icon and choose **Enable on this school**. Chrome asks for access to that one site and nothing else.
 
-**Surviving a React SPA that fights back.** Blackboard Ultra is a React app — it re-renders and strips injected attributes/styles as the user navigates. A `MutationObserver` watches for that and re-applies the theme attribute whenever Blackboard's own JS tries to undo it.
+I built and tested the theme on Iona's Blackboard, so other schools get a neutral indigo accent. If something is hard to read, [open an issue](https://github.com/lviss-1/Darkboard/issues/new?template=school-report.md) or use the **Report a problem** link in the popup.
 
-**Cross-tab sync without polling.** If you toggle dark mode in one tab, every other open Blackboard tab needs to reflect that immediately. Rather than polling `chrome.storage`, an MV3 background service worker broadcasts the toggle via `chrome.tabs.query` + `sendMessage` to every open tab, and rehydrates its own state on the ~30-second MV3 worker-termination cycle. Preference itself persists via `chrome.storage.local`.
+Next up: pulling each school's accent color from its own logo.
 
-**Iframes in separate document contexts.** Blackboard renders significant content inside iframes, which don't inherit the parent page's injected styles. Solved with `all_frames: true` in the manifest so the content script runs in every frame, not just the top one.
+## Install from source
 
-There's also a grade colorizer (parses grade strings from the DOM, computes percentages client-side since CSS can't do arithmetic, and stamps a `data-grade-status` attribute the stylesheet keys off) — it's a smaller feature but a fun one if you're looking at the code.
+```
+git clone https://github.com/lviss-1/Darkboard
+```
+
+Then go to `chrome://extensions`, turn on Developer Mode, click **Load unpacked** and pick the cloned folder.
 
 ## Stack
 
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
-![CSS3](https://img.shields.io/badge/CSS-Custom_Properties-1572B6?style=flat-square&logo=css3&logoColor=white)
-![Chrome Extension API](https://img.shields.io/badge/Chrome_Extension_API-MV3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)
-
-Manifest V3, vanilla JS content script + background service worker, `chrome.storage.local` for persistence.
-
-## Known scope / roadmap
-
-- **Other schools (beta).** Iona (`online.iona.edu`) is built in. Any other school is opt-in: open your school's Blackboard, click the DarkBoard icon, and choose **Enable on this school**. Chrome asks for access to that one site only, and nothing else is requested. The theme is built and tested on Iona's Blackboard, so other schools get a neutral indigo accent and a **Report a problem** link. If something is hard to read, [open an issue](https://github.com/lviss-1/Darkboard/issues/new?template=school-report.md).
-- **Next:** derive each school's accent from its own logo, cached per site so the first frame is still correct.
-
-- `googlef3331e5ec48014da.html` at the repo root is a Google Search Console verification token, not a stray file. Deleting it breaks domain verification.
-
-## Install
-
-**From the Chrome Web Store:** [Dark Mode for Blackboard](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
-
-**From source:**
-```
-1. Clone this repo
-2. Go to chrome://extensions
-3. Enable Developer Mode (top right)
-4. Click "Load unpacked" and select the cloned folder
-```
-
-*Built by an Iona University student for Iona University students, and now open to other schools in beta.*
+Manifest V3, vanilla JavaScript, CSS custom properties, a background service worker, `chrome.storage.local`. No frameworks, no build step.

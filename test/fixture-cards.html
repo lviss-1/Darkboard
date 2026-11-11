@@ -22,7 +22,7 @@
   <script>
     const params = new URLSearchParams(location.search);
     window.__dark = params.has('dark');
-    if (!params.has('warm')) sessionStorage.removeItem('darkboard.cards.v2');
+    if (!params.has('warm')) sessionStorage.removeItem('darkboard.cards.v3');
     if (!params.has('keepOpen')) localStorage.removeItem('darkboard.cards.dueOpen');
     // content.js paints the gate from this mirror before storage answers.
     localStorage.setItem('darkboard.enabled', window.__dark ? 'on' : 'off');
@@ -72,17 +72,35 @@
     (function () {
       const DAY = 864e5;
       const at = (offset) => new Date(Date.now() + offset).toISOString();
-      const item = (courseId, title, offset) => ({ title, dueDate: at(offset), column: { courseId, contentId: '_1_1' } });
+      const item = (courseId, title, offset, contentId) => ({ title, dueDate: at(offset), column: { courseId, contentId } });
 
       const TODO = {
-        overdueItems: [item('_101_1', 'Lab 4 write-up', -2 * DAY)],
-        dueTodayItems: [item('_101_1', 'Quiz 11', 2 * 3600e3)],
+        overdueItems: [item('_101_1', 'Lab 4 write-up', -2 * DAY, '_201_1')],
+        dueTodayItems: [item('_101_1', 'Quiz 11', 2 * 3600e3, '_202_1')],
         futureDueItems: [
-          item('_101_1', 'Assignment 7: Web interface using AI tools and a very long title', 3 * DAY),
-          item('_101_1', 'Exam 3', 5 * DAY),
-          item('_102_1', 'Game Module #2', 6 * DAY),
-          item('_105_1', 'Owned by BetterCampus', 2 * DAY),
+          item('_101_1', 'Assignment 7: Web interface using AI tools and a very long title', 3 * DAY, '_203_1'),
+          // Fourth in its course, so never shown and never resolved.
+          item('_101_1', 'Exam 3', 5 * DAY, '_204_1'),
+          item('_102_1', 'Game Module #2', 6 * DAY, '_205_1'),
+          item('_105_1', 'Owned by BetterCampus', 2 * DAY, '_206_1'),
         ],
+      };
+
+      // The public content endpoint's "User Interface View" link, as the live
+      // API returns it. One refuses (403) and one is hostile; both must fall
+      // back to the course outline.
+      const redirect = (courseId, contentId) =>
+        `/ultra/redirect?redirectType=nautilus&courseId=${courseId}&contentId=${contentId}&parentId=_200_1`;
+      const alternate = (href) => ({ links: [{ href, rel: 'alternate', title: 'User Interface View', type: 'text/html' }] });
+      const CONTENTS = {
+        _201_1: alternate(redirect('_101_1', '_201_1')),
+        _202_1: alternate(redirect('_101_1', '_202_1')),
+        _205_1: alternate('https://evil.invalid/ultra/redirect?x=1'),
+        _206_1: alternate(redirect('_105_1', '_206_1')),
+      };
+      window.__expectedLinks = {
+        _101_1: [redirect('_101_1', '_201_1'), redirect('_101_1', '_202_1'), '/ultra/courses/_101_1/outline'],
+        _102_1: ['/ultra/courses/_102_1/outline'],
       };
 
       const col = (id, extra) => ({ id, visible: true, calculationType: 'NON_CALCULATED', columnName: 'Item ' + id, ...extra });
@@ -121,6 +139,11 @@
         if (url.pathname === '/learn/api/v1/calendars/todo/studentItems') {
           if (Date.parse(url.searchParams.get('since')) < Date.now() - 60e3) return json({ status: 400 }, 400);
           return json(TODO);
+        }
+        const content = url.pathname.match(/^\/learn\/api\/public\/v1\/courses\/(_\d+_\d+)\/contents\/(_\d+_\d+)$/);
+        if (content) {
+          const body = CONTENTS[content[2]];
+          return body ? json(body) : json({ status: 403 }, 403);
         }
         const m = url.pathname.match(/^\/learn\/api\/v1\/courses\/(_\d+_\d+)\/gradebook\/(columns|grades)$/);
         if (m) {
@@ -226,7 +249,17 @@
     });
     window.__scriptReady = window.__cssReady
       .then(() => load('../src/content.js'))
-      .then(() => load('../src/course-cards.js'));
+      .then(() => {
+        // Ultra points <base> at its CDN, so any relative href on the page
+        // resolves there: the S3 "NoSuchKey" page in the report. The base goes
+        // in after everything relative has loaded, and course-cards.js itself
+        // is loaded by absolute URL.
+        const cards = new URL('../src/course-cards.js', location.href).href;
+        const base = document.createElement('base');
+        base.href = '//cdn.invalid/ultra/uiv4001/';
+        document.head.prepend(base);
+        return load(cards);
+      });
 
     // Waits until no request has been made for a while and a frame has run.
     window.__settle = async function (quietMs = 150) {
@@ -272,6 +305,9 @@
         due: due && [...due.querySelectorAll('li')].map((li) => [li.dataset.state, li.querySelector('time').textContent]),
         // The section must span the details grid, title edge to star edge.
         spansFull: !!due && Math.abs(due.getBoundingClientRect().width - title.getBoundingClientRect().width) <= 1,
+        // Resolved hrefs, origin stripped, so they compare with __expectedLinks.
+        links: due && [...due.querySelectorAll('li a')].map((a) => a.href.replace(location.origin, '')),
+        badgeHref: badge && badge.href.replace(location.origin, ''),
         marks: ours(article).length,
         _details: details,
       };
@@ -347,6 +383,11 @@
         requestPaths: window.__requests.map((p) => p.split('?')[0]),
         cards,
         nestedPill,
+        // Every link we draw must stay on Blackboard's origin despite <base>.
+        linksSameOrigin: [...document.querySelectorAll('[data-darkboard-card] a[href], a[data-darkboard-card][href]')]
+          .every((a) => a.href.startsWith(location.origin + '/')),
+        linksAsExpected: Object.entries(window.__expectedLinks)
+          .every(([id, hrefs]) => JSON.stringify(cards[id].links) === JSON.stringify(hrefs)),
         layout: __layout(),
         contrast: measure('_101_1'),
       };

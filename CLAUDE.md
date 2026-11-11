@@ -148,7 +148,13 @@ independent of dark mode; there is no preference and no `chrome.*` call.
     `overdueItems` / `dueTodayItems` / `futureDueItems`, each item with
     `column.courseId`. **A past `since` is a 400**; the server decides overdue;
   - per course, `GET /learn/api/v1/courses/<id>/gradebook/columns` then
-    `…/gradebook/grades?limit=100&userId=<id>`.
+    `…/gradebook/grades?limit=100&userId=<id>`;
+  - per **shown** Due item (≤ 3 per visible course),
+    `GET /learn/api/public/v1/courses/<id>/contents/<contentId>`. Its
+    `links[rel="alternate"]` ("User Interface View") is
+    `/ultra/redirect?redirectType=nautilus&courseId&contentId&parentId`:
+    Blackboard's own deep link, which opens assessments and LTI items alike.
+    `parentId` is only available here, so the link is fetched, not built.
 - Overall column: the single `externalGrade: true`, else the single
   calculated (`calculationType` ≠ `NON_CALCULATED`) column, else one named
   overall/total/final, else nothing.
@@ -166,6 +172,15 @@ independent of dark mode; there is no preference and no `chrome.*` call.
     the list itself still caps at 3.
   - A failed due fetch draws no section at all, rather than "Due · 0"
     everywhere.
+  - Each item links to its alternate link. The link is accepted only if it
+    is same-origin and under `/ultra/`; anything else, a 4xx, or a missing
+    `contentId` falls back to the course outline. A section is drawn only
+    once its course's links are resolved (`linksExpires`), so a link never
+    changes under the student.
+- **Ultra sets `<base href>` to its CDN**
+  (`//dmuwut6e40u5o.cloudfront.net/ultra/…`), so a relative href on an Ultra
+  page opens an S3 "NoSuchKey" page. Every href we create goes through
+  `ultraUrl()` (`new URL(path, location.origin)`), never a bare `/ultra/…`.
   - The disclosure chevron is drawn in CSS, because Ultra's sheet strips the
     native `<summary>` marker.
 - Card layout (measured live, BetterCampus off; BetterCampus rewrites it):
@@ -180,7 +195,7 @@ independent of dark mode; there is no preference and no `chrome.*` call.
     spare height falls at the bottom. That template reproduces the native rows
     exactly when unstretched.
   - Ultra's CSS is cross-origin, so its declared template is unknown.
-- Cache: `sessionStorage['darkboard.cards.v2']`. Entries carry `expires`:
+- Cache: `sessionStorage['darkboard.cards.v3']`. Entries carry `expires`:
   10 min for an answer (4xx included), 1 min for a transient failure, so a
   failed request is never retried on every DOM mutation.
 - Steps aside on any card holding BetterCampus nodes
@@ -188,7 +203,11 @@ independent of dark mode; there is no preference and no `chrome.*` call.
   decorated after ours, and never fetches for them.
 - Verified live (code injected into an Iona course list, not installed):
   - the data path: 14 requests for 7 cards, badge values and due items
-    correct;
+    correct (before item links, which add one request per shown item);
+  - item links: all 5 of the student's due items (3 assessments, 2 LTI)
+    resolve to a same-origin `/ultra/redirect` with matching ids. Clicking
+    one through to the item was left to the student, because opening an
+    item can mark it started;
   - the layout rule: with one card open, no gap on its neighbours;
   - the drawn chevron.
 - Unverified: list view, letter/score-scale schemas beyond one letter course,
@@ -284,7 +303,7 @@ Duplicated values — change every copy together:
   background, content, and the stubs in every fixture.
 - Surface tokens: CSS `:root`, `accent.js` `SURFACES`, `THEME_SURFACE_TOKENS`
   in `content.js`.
-- Storage keys `darkboard.cards.v2` (sessionStorage) and
+- Storage keys `darkboard.cards.v3` (sessionStorage) and
   `darkboard.cards.dueOpen` (localStorage): `course-cards.js` and the
   `fixture-cards` setup that clears them.
 - Marker `data-darkboard-card`: `course-cards.js`, `CARD_MARK_SELECTOR` in
@@ -301,7 +320,8 @@ Section 8 buttons | Calendar day buttons (section 36), `svg:only-child` icon det
 A palette token | Every measured ratio in `test/README.md`, `accent.js` `SURFACES`, the `theme()` surface set in `content.js` (it skips surfaces the theme already painted)
 Progress-bar rules (end of section 28) | Never fill `> *` of a bar: with the role or class on a wrapper, that child is the track (the "all maroon" report). Fills are empty `div`/`span` leaves. Ultra's JSS classes are camelCase `makeStyles<name>-0-2-N`, so list `progressBar` beside `progress-bar` and never key on the `-0-2-N` suffix. `fixture-progress`
 Grade regexes or guards | Date/counter/progress words, heading exclusion, `/grades` path rule; both `fixture-grades.html` and `grades/fixture-gradebook.html`. The 90/80/70 thresholds (`statusForPercent`) also colour the course-card badge
-`course-cards.js` endpoints, selectors or cache | Requests per load (`fixture-cards` cold = 2 + 2×cards, warm = 0); a failure must still make the entry fresh, or every mutation refetches; BetterCampus step-aside; the card is click-to-invoke, so our links stop propagation. The card's details area is a CSS grid with a flexible title row: anything added must place itself (`grid-column: 1 / -1`), and anything that changes a card's height stretches its whole row (`fixture-cards` `__openDue`, `gap` must stay 0)
+Anything that builds a URL on an Ultra page | Ultra's `<base href>` points at its CDN: a relative href opens an S3 error. Build with `new URL(path, location.origin)`. `fixture-cards` inserts a CDN `<base>` and checks `linksSameOrigin`
+`course-cards.js` endpoints, selectors or cache | Requests per load (`fixture-cards` cold = 2 + 2×cards + shown due items, warm = 0); a failure must still make the entry fresh, or every mutation refetches; BetterCampus step-aside; the card is click-to-invoke, so our links stop propagation. The card's details area is a CSS grid with a flexible title row: anything added must place itself (`grid-column: 1 / -1`), and anything that changes a card's height stretches its whole row (`fixture-cards` `__openDue`, `gap` must stay 0)
 How `content.js` finds anything in the DOM | Blackboard's real DOM differs from every fixture except the gradebook and cards ones. Ask for a live-page diagnostic first
 A new inline-style pass | Add it inside `runStreamPass`'s disconnect window, give it a marker, add its revert to `stopEnhancements`, make it idempotent (mark + priority check)
 Observer config or debounce | Hidden tabs pause rAF; `MAX_ROOTS` widening; `characterData` is how Angular text rewrites are seen

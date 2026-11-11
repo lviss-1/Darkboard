@@ -39,7 +39,7 @@
   const BETTERCAMPUS = '[class*="bettercampus-card-grade"], [class*="bettercampus-grade-anchor"]';
   const OVERALL_NAME = /overall|total|final/i;
 
-  const CACHE_KEY = 'darkboard.cards.v2';
+  const CACHE_KEY = 'darkboard.cards.v3';
   const OPEN_KEY = 'darkboard.cards.dueOpen';
   const CACHE_TTL_MS = 10 * 60 * 1000;
   // A network error or timeout is retried sooner than a real answer expires,
@@ -113,6 +113,38 @@
     writeJson(localStorage, OPEN_KEY, [...set]);
   }
 
+  // ─── URLs ───────────────────────────────────────────────────────────────
+  // Ultra sets <base href> to its CDN, so a relative href on the page resolves
+  // there: "/ultra/courses/…/outline" opened an S3 "NoSuchKey" page. Every
+  // link we draw is made absolute against the page's own origin, which
+  // new URL() takes from its second argument and not from <base>.
+
+  function ultraUrl(path) {
+    return new URL(path, location.origin).href;
+  }
+
+  function outlineUrl(courseId) {
+    return ultraUrl(`/ultra/courses/${courseId}/outline`);
+  }
+
+  // The "User Interface View" link Blackboard's public API gives every content
+  // item: /ultra/redirect?…&contentId=…&parentId=…, the deep link its own
+  // notifications use, which routes to the right view for any item type. It
+  // is accepted only on this origin and under /ultra/, so whatever the field
+  // holds cannot become a javascript: URL or a link off the site.
+  function alternateLink(body) {
+    const links = body && Array.isArray(body.links) ? body.links : [];
+    const alternate = links.find((l) => l && l.rel === 'alternate' && typeof l.href === 'string');
+    if (!alternate) return null;
+    let url;
+    try {
+      url = new URL(alternate.href, location.origin);
+    } catch (e) {
+      return null;
+    }
+    return url.origin === location.origin && url.pathname.startsWith('/ultra/') ? url.href : null;
+  }
+
   // ─── Network ────────────────────────────────────────────────────────────
 
   // 403 is routine (closed and organisation courses refuse gradebook reads),
@@ -184,7 +216,8 @@
         if (!courseId || !Number.isFinite(due)) continue;
         const title = item.title || item.column.effectiveColumnName || item.column.columnName;
         if (!title) continue;
-        (byCourse[courseId] ||= []).push({ title, due, state });
+        const contentId = typeof item.column.contentId === 'string' ? item.column.contentId : null;
+        (byCourse[courseId] ||= []).push({ title, due, state, contentId });
       }
     };
     add(result.body.overdueItems, 'overdue');
@@ -203,6 +236,35 @@
     }
 
     cache.due = { expires: expiry(result), fetchedAt: Date.now(), byCourse: summarised };
+    writeCache();
+  }
+
+  function linksFresh(entry) {
+    return !entry.items.length || (!!entry.linksExpires && Date.now() < entry.linksExpires);
+  }
+
+  // One request per item actually shown (at most three per course), only for
+  // courses with a card on screen. parentId is part of the link and is not in
+  // the to-do response, so the link is fetched rather than built. An item
+  // without a usable link falls back to its course outline; one that failed
+  // transiently is asked again after RETRY_MS.
+  async function resolveLinks(courseId) {
+    const entry = cache.due && cache.due.byCourse[courseId];
+    if (!entry || linksFresh(entry)) return;
+
+    let transient = false;
+    for (const item of entry.items) {
+      if (item.url && !item.retry) continue;
+      const result = item.contentId
+        ? await fetchJson(`/learn/api/public/v1/courses/${courseId}/contents/${item.contentId}`)
+        : { body: null, transient: false };
+      const link = alternateLink(result.body);
+      item.url = link || outlineUrl(courseId);
+      item.retry = !link && result.transient;
+      transient = transient || item.retry;
+    }
+
+    entry.linksExpires = Date.now() + (transient ? RETRY_MS : CACHE_TTL_MS);
     writeCache();
   }
 
@@ -309,7 +371,7 @@
     badge.className = 'darkboard-card-grade darkboard-pill';
     badge.setAttribute(MARK, 'grade');
     if (grade.status) badge.dataset.gradeStatus = grade.status;
-    badge.href = `/ultra/courses/${courseId}/grades`;
+    badge.href = ultraUrl(`/ultra/courses/${courseId}/grades`);
     badge.textContent = grade.text;
     const label = grade.text === grade.percent
       ? `Overall grade ${grade.percent}`
@@ -371,7 +433,7 @@
         li.dataset.state = item.state;
 
         const link = document.createElement('a');
-        link.href = `/ultra/courses/${courseId}/outline`;
+        link.href = item.url || outlineUrl(courseId);
         link.textContent = item.title;
         link.title = item.title;
         isolate(link);
@@ -426,13 +488,20 @@
         }
       }
 
+      // A section is drawn only once its links are known, so a link never
+      // points somewhere it will later stop pointing. The stamp covers both
+      // the due data and the links, so newer either replaces the section.
       if (cache.due && !cache.due.failed) {
-        const stamp = String(cache.due.fetchedAt);
-        const existing = article.querySelector(`[${MARK}="due"]`);
-        if (!existing || existing.dataset.stamp !== stamp) {
-          const section = buildDue(courseId, cache.due.byCourse[courseId] || NO_DUE, stamp);
-          if (existing) existing.replaceWith(section);
-          else details.appendChild(section);
+        const entry = cache.due.byCourse[courseId] || NO_DUE;
+        if (!linksFresh(entry)) missing = true;
+        if (entry === NO_DUE || entry.linksExpires) {
+          const stamp = `${cache.due.fetchedAt}:${entry.linksExpires || 0}`;
+          const existing = article.querySelector(`[${MARK}="due"]`);
+          if (!existing || existing.dataset.stamp !== stamp) {
+            const section = buildDue(courseId, entry, stamp);
+            if (existing) existing.replaceWith(section);
+            else details.appendChild(section);
+          }
         }
       }
     }
@@ -468,6 +537,8 @@
         deferGrades(courseIds);
       }
       await runLimited(tasks);
+      // Links need the due items, so they resolve in a second wave.
+      await runLimited(courseIds.map((id) => () => resolveLinks(id)));
       renderQuietly();
     })();
 

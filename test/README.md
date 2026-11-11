@@ -159,8 +159,23 @@ because BetterCampus rewrites the card into floats:
 
 Ultra's CSS is cross-origin, so the fixture reproduces that geometry rather
 than the declared rules. The API response shapes are live, the values
-invented. `window.fetch` is stubbed for the four `/learn/api/` endpoints and
+invented. `window.fetch` is stubbed for the five `/learn/api/` endpoints and
 counts every request.
+
+**Links.** Ultra points `<base href>` at its CDN, so a relative href opened an
+S3 "NoSuchKey" page. The fixture inserts `<base href="//cdn.invalid/ultra/…">`
+before loading `course-cards.js`, the way Ultra does. With the previous code
+the badge and every Due link resolved to `cdn.invalid`.
+- `linksSameOrigin` checks every link we draw stays on the page's origin.
+- `linksAsExpected` checks each item's target:
+
+| Item | Content endpoint | Link |
+|---|---|---|
+| `_101_1` Lab 4, Quiz 11 | `alternate` → `/ultra/redirect?…` | that redirect |
+| `_101_1` Assignment 7 | 403 | `/ultra/courses/_101_1/outline` |
+| `_101_1` Exam 3 (4th, not shown) | never requested | — |
+| `_102_1` Game Module #2 | `alternate` → `https://evil.invalid/…` | rejected → outline |
+| `_105_1` (BetterCampus) | never requested | — |
 
 Query parameters:
 - `?dark` turns the gate on and loads `dark-mode.css`; without it the page is
@@ -186,7 +201,7 @@ and its header carries an `aria-label` sentence ("Due soon: 4 items,
 1 overdue").
 
 ```js
-await __probe()            // requests 10 cold (1 user + 1 due + 5 columns + 3 grades); every layout gap 0
+await __probe()            // requests 14 cold (1 user + 1 due + 5 columns + 3 grades + 4 item links); every layout gap 0; linksSameOrigin, linksAsExpected true
 await __openDue('_101_1')  // open; remembered ['_101_1']; row 1 grows, every gap still 0
 await __rerender()         // replaced article re-decorated once, still open, newRequests 0
 await __clickBadge()       // cardClicksFromOurs 0; the card's own title still opens it

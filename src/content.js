@@ -815,6 +815,7 @@ const INLINE_HOSTS = new Set(['SPAN', 'B', 'STRONG', 'EM', 'I', 'A', 'LABEL', 'S
 // Scanning is no longer confined to known containers, so the walk now reaches
 // text that is not rendered prose. Wrapping a node inside one of these would be
 // invisible at best and would corrupt inline JSON at worst.
+const CARD_MARK_SELECTOR = '[data-darkboard-card]';
 const SKIP_HOSTS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'TITLE']);
 
 // Whether a bare integer pair should read as a score rather than a date. The
@@ -865,6 +866,12 @@ function gradeStatusFor(el, text) {
     pct = parseFloat(percentage[1]);
   }
 
+  return statusForPercent(pct);
+}
+
+// Shared with course-cards.js, so a course-card badge and a gradebook pill
+// can never disagree about what counts as a good grade.
+function statusForPercent(pct) {
   return pct >= 90 ? 'good' : pct >= 80 ? 'fair' : pct >= 70 ? 'average' : 'poor';
 }
 
@@ -902,6 +909,9 @@ function stampGrade(el, status, node) {
 function considerGradeText(node) {
   const el = node.parentElement;
   if (!el || SKIP_HOSTS.has(el.tagName)) return;
+  // course-cards.js stamps its own status on the badge; pilling its text again
+  // would nest a pill inside a pill.
+  if (el.closest(CARD_MARK_SELECTOR)) return;
 
   const text = node.data.replace(/\s+/g, ' ').trim();
   if (!text) return;

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<!-- Course cards (course-cards.js). The card markup, its layout, and the API
+     response shapes were read from a live Iona course list (card view, with
+     BetterCampus off: it rewrites the layout) and from the endpoints Ultra
+     itself calls; the values are invented.
+
+     ?dark      turns the gate on and loads dark-mode.css; without it the page
+                is Blackboard's light theme and only course-cards.css applies.
+     ?warm      keeps sessionStorage, so the second load runs from the cache.
+     ?keepOpen  keeps the remembered open Due sections from the last load.
+     ?cardsCss= swaps course-cards.css, for before/after comparisons.
+     ?css=      swaps dark-mode.css the same way (only with ?dark). -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — course cards</title>
+
+  <script>
+    document.write('<script src="contrast.js?cb=' + Date.now() + '"><\/script>');
+    document.write('<script src="restyle.js?cb=' + Date.now() + '"><\/script>');
+  </script>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    window.__dark = params.has('dark');
+    if (!params.has('warm')) sessionStorage.removeItem('darkboard.cards.v3');
+    if (!params.has('keepOpen')) localStorage.removeItem('darkboard.cards.dueOpen');
+    // content.js paints the gate from this mirror before storage answers.
+    localStorage.setItem('darkboard.enabled', window.__dark ? 'on' : 'off');
+
+    const sheet = (href) => new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href + '?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+    window.__cssReady = Promise.all([
+      sheet(params.get('cardsCss') || '../src/course-cards.css'),
+      window.__dark ? sheet(params.get('css') || '../src/dark-mode.css') : Promise.resolve(),
+    ]);
+
+    // Both observers debounce through requestAnimationFrame, which a hidden
+    // tab pauses. An occluded Browser pane is worse: it reports
+    // document.hidden false and still never runs a frame, so a timer races
+    // every frame here and whichever comes first runs the callback once.
+    (function () {
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = function (fn) {
+        let ran = false;
+        const once = (t) => { if (!ran) { ran = true; fn(t); } };
+        native(once);
+        setTimeout(() => once(performance.now()), 50);
+        return 0;
+      };
+    })();
+
+    // ─── chrome.* ──────────────────────────────────────────────────────────
+    // Only content.js reads chrome.*; course-cards.js uses none of it.
+    window.chrome = {
+      storage: {
+        local: {
+          get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: window.__dark }), 0); },
+          set() {},
+        },
+      },
+      runtime: { onMessage: { addListener() {} } },
+    };
+
+    // ─── Blackboard's API ──────────────────────────────────────────────────
+    // Shapes as the live endpoints return them, trimmed to the fields read.
+    (function () {
+      const DAY = 864e5;
+      const at = (offset) => new Date(Date.now() + offset).toISOString();
+      const item = (courseId, title, offset, contentId) => ({ title, dueDate: at(offset), column: { courseId, contentId } });
+
+      const TODO = {
+        overdueItems: [item('_101_1', 'Lab 4 write-up', -2 * DAY, '_201_1')],
+        dueTodayItems: [item('_101_1', 'Quiz 11', 2 * 3600e3, '_202_1')],
+        futureDueItems: [
+          item('_101_1', 'Assignment 7: Web interface using AI tools and a very long title', 3 * DAY, '_203_1'),
+          // Fourth in its course, so never shown and never resolved.
+          item('_101_1', 'Exam 3', 5 * DAY, '_204_1'),
+          item('_102_1', 'Game Module #2', 6 * DAY, '_205_1'),
+          item('_105_1', 'Owned by BetterCampus', 2 * DAY, '_206_1'),
+        ],
+      };
+
+      // The public content endpoint's "User Interface View" link, as the live
+      // API returns it. One refuses (403) and one is hostile; both must fall
+      // back to the course outline.
+      const redirect = (courseId, contentId) =>
+        `/ultra/redirect?redirectType=nautilus&courseId=${courseId}&contentId=${contentId}&parentId=_200_1`;
+      const alternate = (href) => ({ links: [{ href, rel: 'alternate', title: 'User Interface View', type: 'text/html' }] });
+      const CONTENTS = {
+        _201_1: alternate(redirect('_101_1', '_201_1')),
+        _202_1: alternate(redirect('_101_1', '_202_1')),
+        _205_1: alternate('https://evil.invalid/ultra/redirect?x=1'),
+        _206_1: alternate(redirect('_105_1', '_206_1')),
+      };
+      window.__expectedLinks = {
+        _101_1: [redirect('_101_1', '_201_1'), redirect('_101_1', '_202_1'), '/ultra/courses/_101_1/outline'],
+        _102_1: ['/ultra/courses/_102_1/outline'],
+      };
+
+      const col = (id, extra) => ({ id, visible: true, calculationType: 'NON_CALCULATED', columnName: 'Item ' + id, ...extra });
+      const COLUMNS = {
+        // External overall grade, shown as a percentage.
+        _101_1: [col('_1'), col('_overall', { externalGrade: true, calculationType: 'CUSTOM', columnName: 'Overall Grade' })],
+        // No external grade; the one calculated column stands in, and its
+        // schema maps the score to a letter.
+        _102_1: [col('_1'), col('_calc', { calculationType: 'CUSTOM', columnName: 'Weighted' })],
+        // Two calculated columns, neither named overall: ambiguous.
+        _104_1: [col('_a', { calculationType: 'CUSTOM', columnName: 'Labs' }), col('_b', { calculationType: 'CUSTOM', columnName: 'Exams' })],
+        // Overall grade not released to students.
+        _107_1: [col('_overall', { externalGrade: true, calculationType: 'CUSTOM', gradesReleased: false })],
+      };
+      const GRADES = {
+        _101_1: [{ columnId: '_1', displayGrade: { score: 100 } }, { columnId: '_overall', displayGrade: { score: 98.05, isOverride: false }, pointsPossible: 42.8 }],
+        _102_1: [{ columnId: '_calc', displayGrade: { score: 84.5, grade: 'B', isOverride: false }, pointsPossible: 100 }],
+        _104_1: [{ columnId: '_a', displayGrade: { score: 91 } }],
+        _107_1: [{ columnId: '_overall', displayGrade: { score: 77 } }],
+      };
+
+      const json = (body, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+      window.__requests = [];
+      const native = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+        if (!url.pathname.startsWith('/learn/api/')) return native(input, init);
+        // A real fetch given an aborted signal never reaches the network.
+        if (init && init.signal && init.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        window.__requests.push(url.pathname + url.search);
+        await new Promise((r) => setTimeout(r, 5));
+
+        if (url.pathname === '/learn/api/public/v1/users/me') return json({ id: '_900_1' });
+        if (url.pathname === '/learn/api/v1/calendars/todo/studentItems') {
+          if (Date.parse(url.searchParams.get('since')) < Date.now() - 60e3) return json({ status: 400 }, 400);
+          return json(TODO);
+        }
+        const content = url.pathname.match(/^\/learn\/api\/public\/v1\/courses\/(_\d+_\d+)\/contents\/(_\d+_\d+)$/);
+        if (content) {
+          const body = CONTENTS[content[2]];
+          return body ? json(body) : json({ status: 403 }, 403);
+        }
+        const m = url.pathname.match(/^\/learn\/api\/v1\/courses\/(_\d+_\d+)\/gradebook\/(columns|grades)$/);
+        if (m) {
+          const [, courseId, kind] = m;
+          const table = kind === 'columns' ? COLUMNS : GRADES;
+          if (!(courseId in table)) return json({ status: 403 }, 403);
+          return json({ results: table[courseId] });
+        }
+        return json({ status: 404 }, 404);
+      };
+    })();
+  </script>
+
+  <style>
+    /* Stands in for Blackboard's card sheet, as measured on the live page:
+       a three-column list grid that stretches every card in a row to the
+       tallest; each card a 260px `row wrap` flexbox (128px banner, then the
+       details filling the rest of the card); the details a two-column grid
+       (266px + 88px) with five placed rows, the title row a flexible track
+       and the status row 30px. Stretching a live card to 404px grew only the
+       title row (21 → 165px): that is the gap mid-card in the report. The
+       declared rules are cross-origin and unreadable, so this reproduces the
+       geometry, not Blackboard's exact CSS. */
+    body { font-family: system-ui, sans-serif; background: #f8f8f8; margin: 16px; }
+    .course-org-list { display: grid; grid-template-columns: repeat(3, 380px); column-gap: 16px; }
+    .default-group { display: block; }
+    article.element-card { position: relative; box-sizing: border-box; height: calc(100% - 16px); min-height: 82px; margin: 8px 0; display: flex; flex-flow: row wrap; align-content: flex-start; background: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .course-banner { position: relative; width: 100%; height: 128px; background: linear-gradient(135deg, #6f2c3e, #2c4a6f); }
+    .element-details { flex: 1 1 100%; box-sizing: border-box; height: calc(100% - 129px); display: grid; grid-template-columns: 1fr 88px; grid-template-rows: auto 1fr 30px auto auto; padding: 8px 12px 0; }
+    .element-details > .small-12 { grid-area: 1 / 2; }
+    .element-details > .multi-column-course-id { grid-area: 1 / 1; }
+    .element-details > .course-title { grid-area: 2 / 1 / auto / -1; }
+    .element-details > .course-status { grid-area: 3 / 1 / auto / -1; }
+    .element-details > hr.separator { grid-area: 4 / 1 / auto / -1; border: 0; border-top: 1px solid #ddd; margin: 1px 0; }
+    .element-details > .status-bar { grid-area: 5 / 1; display: flex; padding: 8px 0; }
+    .element-details > .more-info { grid-area: 5 / 2; display: flex; justify-content: flex-end; padding: 8px 0; }
+    .course-title h4 { margin: 0; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="course-org-list">
+    <!-- Built from one template so every card has the live shape. -->
+  </div>
+
+  <template id="card">
+    <div class="default-group"><bb-base-course-card>
+      <article class="element-card course-element-card highlight pointer bar js-course-details child-is-invokable">
+        <div class="course-banner"><div class="image-div" role="img"></div><div class="guidance-overflow-wrapper"></div></div>
+        <div class="element-details summary">
+          <div class="small-12"></div>
+          <a class="course-title ellipsis"><h4 class="js-course-title-element"></h4></a>
+          <div class="multi-column-course-id">1760.4725</div>
+          <div class="course-status"><span><span class="status-text">Open</span></span></div>
+          <hr class="separator" />
+          <div class="small-8 status-bar visibility"><div class="basic-info"><div class="instructors"><div class="ellipsis"><bb-username class="user-name username course_user_900_1"><span class="username-accommodation-icon"></span><bb-ui-username class="bb-ui-username"><div class="makeStylesroot-0-2-1"><div class="makeStylesuserPronunciation-0-2-2"><bdi class="makeStylesbaseText-0-2-3">Instructor</bdi></div></div></bb-ui-username></bb-username></div></div></div></div>
+          <div class="more-info"><button type="button">More</button></div>
+        </div>
+      </article>
+    </bb-base-course-card></div>
+  </template>
+
+  <script>
+    window.__cardClicks = 0;
+    const CARDS = [
+      ['_101_1', 'External overall grade'],
+      ['_102_1', 'Letter from a calculated column'],
+      ['_103_1', 'Gradebook refuses (403)'],
+      ['_104_1', 'Two calculated columns'],
+      ['_105_1', 'Decorated by BetterCampus'],
+      ['', 'Blank id, no course'],
+      ['_107_1', 'Grade not released'],
+    ];
+
+    function buildCard(courseId, title) {
+      const node = document.getElementById('card').content.cloneNode(true);
+      const article = node.querySelector('article');
+      article.id = 'course-list-course-' + courseId;
+      article.querySelector('a.course-title').id = 'course-link-' + courseId;
+      article.querySelector('h4').textContent = title;
+      // The real card opens its course on click; this counts instead.
+      article.addEventListener('click', () => window.__cardClicks++);
+      if (courseId === '_105_1') {
+        const anchor = document.createElement('div');
+        anchor.className = 'bettercampus-grade-anchor';
+        anchor.innerHTML = '<div><a class="bettercampus-card-grade">97%</a></div>';
+        article.querySelector('.course-banner').prepend(anchor);
+      }
+      return node;
+    }
+
+    const list = document.querySelector('.course-org-list');
+    for (const [id, title] of CARDS) list.appendChild(buildCard(id, title));
+
+    // Navigation would unload the fixture mid-test; the click still bubbles.
+    document.addEventListener('click', (e) => { if (e.target.closest('a')) e.preventDefault(); }, true);
+
+    const load = (src) => new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src + '?cb=' + Date.now();
+      s.onload = resolve;
+      s.onerror = reject;
+      document.body.appendChild(s);
+    });
+    window.__scriptReady = window.__cssReady
+      .then(() => load('../src/content.js'))
+      .then(() => {
+        // Ultra points <base> at its CDN, so any relative href on the page
+        // resolves there: the S3 "NoSuchKey" page in the report. The base goes
+        // in after everything relative has loaded, and course-cards.js itself
+        // is loaded by absolute URL.
+        const cards = new URL('../src/course-cards.js', location.href).href;
+        const base = document.createElement('base');
+        base.href = '//cdn.invalid/ultra/uiv4001/';
+        document.head.prepend(base);
+        return load(cards);
+      });
+
+    // Waits until no request has been made for a while and a frame has run.
+    window.__settle = async function (quietMs = 150) {
+      await window.__scriptReady;
+      let seen = -1;
+      while (seen !== window.__requests.length) {
+        seen = window.__requests.length;
+        await new Promise((r) => setTimeout(r, quietMs));
+      }
+      // An occluded pane can report document.hidden false and still never run
+      // a frame, so the frame is raced against a timer.
+      await new Promise((r) => {
+        requestAnimationFrame(() => setTimeout(r, 0));
+        setTimeout(r, 200);
+      });
+    };
+
+    const card = (id) => document.getElementById('course-list-course-' + id);
+    const ours = (root) => root.querySelectorAll('[data-darkboard-card]');
+
+    function cardState(id) {
+      const article = card(id);
+      const badge = article.querySelector('[data-darkboard-card="grade"]');
+      const due = article.querySelector('[data-darkboard-card="due"]');
+      const banner = article.querySelector('.course-banner');
+      let offset = null;
+      if (badge) {
+        const b = badge.getBoundingClientRect(), r = banner.getBoundingClientRect();
+        offset = [Math.round(b.left - r.left), Math.round(b.top - r.top)];
+      }
+      const details = article.querySelector('.element-details');
+      const title = article.querySelector('.course-title');
+      return {
+        badge: badge && badge.textContent,
+        status: badge && (badge.dataset.gradeStatus || null),
+        label: badge && badge.getAttribute('aria-label'),
+        inBanner: !!badge && badge.parentElement === banner,
+        offset,
+        header: due && due.querySelector('summary').textContent,
+        headerLabel: due && due.querySelector('summary').getAttribute('aria-label'),
+        open: due && due.querySelector('details').open,
+        empty: due && (due.querySelector('.darkboard-card-due__empty') || {}).textContent || null,
+        due: due && [...due.querySelectorAll('li')].map((li) => [li.dataset.state, li.querySelector('time').textContent]),
+        // The section must span the details grid, title edge to star edge.
+        spansFull: !!due && Math.abs(due.getBoundingClientRect().width - title.getBoundingClientRect().width) <= 1,
+        // Resolved hrefs, origin stripped, so they compare with __expectedLinks.
+        links: due && [...due.querySelectorAll('li a')].map((a) => a.href.replace(location.origin, '')),
+        badgeHref: badge && badge.href.replace(location.origin, ''),
+        marks: ours(article).length,
+        _details: details,
+      };
+    }
+
+    // Distance from the bottom of the title text to the top of the status
+    // line: the dead space in the report, 0 on an unstretched live card. The
+    // <h4> is measured, not the link: the link is a grid item and stretches
+    // with its row, so its own bottom always meets the status line.
+    function gapOf(id) {
+      const article = card(id);
+      return Math.round(article.querySelector('.course-status').getBoundingClientRect().top
+        - article.querySelector('.course-title h4').getBoundingClientRect().bottom);
+    }
+
+    window.__layout = function () {
+      const rowOf = (id) => Math.round(card(id).getBoundingClientRect().top);
+      return Object.fromEntries(CARDS.map(([id]) => [id || 'blank', {
+        row: rowOf(id),
+        height: Math.round(card(id).getBoundingClientRect().height),
+        gap: gapOf(id),
+      }]));
+    };
+
+    // Opens one card's Due section the way a student does, then reports the
+    // layout of its row.
+    window.__openDue = async function (id = '_101_1') {
+      await __settle();
+      const summary = card(id).querySelector('[data-darkboard-card="due"] summary');
+      summary.click();
+      await __settle();
+      return {
+        open: card(id).querySelector('[data-darkboard-card="due"] details').open,
+        remembered: JSON.parse(localStorage.getItem('darkboard.cards.dueOpen') || '[]'),
+        layout: __layout(),
+      };
+    };
+
+    function measure(id) {
+      const article = card(id);
+      const badge = article.querySelector('[data-darkboard-card="grade"]');
+      const li = article.querySelector('[data-darkboard-card="due"] li');
+      const overdue = article.querySelector('[data-darkboard-card="due"] li[data-state="overdue"] time');
+      const upcoming = article.querySelector('[data-darkboard-card="due"] li[data-state="upcoming"] time');
+      const cardBg = __computed(article, 'backgroundColor');
+      const ratio = (el) => el && __contrast(__computed(el, 'color'), cardBg);
+      // Every layer of the instructor name, host to text, must show the card.
+      const nameLayers = [...article.querySelectorAll('.instructors bb-username, .instructors bb-username *')];
+      // The list items only lay out while open, but colour does not depend on
+      // it; the empty-state line comes from a card with nothing due.
+      return {
+        cardBg,
+        badgeText: badge && __contrast(__computed(badge, 'color'), __computed(badge, 'backgroundColor')),
+        itemText: ratio(li && li.querySelector('a')),
+        dateText: ratio(upcoming),
+        overdueText: ratio(overdue),
+        summary: ratio(article.querySelector('summary .darkboard-card-due__label')),
+        headerCount: ratio(article.querySelector('.darkboard-card-due__count')),
+        headerOverdue: ratio(article.querySelector('.darkboard-card-due__overdue')),
+        emptyText: ratio(card('_103_1').querySelector('.darkboard-card-due__empty')),
+        instructorText: ratio(article.querySelector('.instructors bdi')),
+        // Dark only: in Blackboard's light theme the layers are transparent.
+        instructorOffCard: window.__dark ? nameLayers
+          .filter((el) => __computed(el, 'backgroundColor') !== cardBg)
+          .map((el) => el.tagName.toLowerCase() + ' ' + __computed(el, 'backgroundColor')) : null,
+      };
+    }
+
+    window.__probe = async function () {
+      await __settle();
+      const cards = Object.fromEntries(CARDS.map(([id]) => {
+        const state = cardState(id);
+        delete state._details;
+        return [id || 'blank', state];
+      }));
+      const nestedPill = !!document.querySelector('.darkboard-pill .darkboard-pill, [data-darkboard-card] .darkboard-pill');
+      return {
+        dark: document.documentElement.hasAttribute('data-bb-dark'),
+        requests: window.__requests.length,
+        requestPaths: window.__requests.map((p) => p.split('?')[0]),
+        cards,
+        nestedPill,
+        // Every link we draw must stay on Blackboard's origin despite <base>.
+        linksSameOrigin: [...document.querySelectorAll('[data-darkboard-card] a[href], a[data-darkboard-card][href]')]
+          .every((a) => a.href.startsWith(location.origin + '/')),
+        linksAsExpected: Object.entries(window.__expectedLinks)
+          .every(([id, hrefs]) => JSON.stringify(cards[id].links) === JSON.stringify(hrefs)),
+        layout: __layout(),
+        contrast: measure('_101_1'),
+      };
+    };
+
+    // Ultra re-renders a card by replacing its element. The replacement has to
+    // be decorated exactly once, from the cache.
+    window.__rerender = async function (id = '_101_1') {
+      await __settle();
+      const before = window.__requests.length;
+      const old = card(id).closest('.default-group');
+      old.replaceWith(buildCard(id, 'Re-rendered'));
+      await __settle();
+      return { newRequests: window.__requests.length - before, state: cardState(id) };
+    };
+
+    // BetterCampus decorating a card after us: ours must go.
+    window.__lateBetterCampus = async function (id = '_102_1') {
+      await __settle();
+      const anchor = document.createElement('div');
+      anchor.className = 'bettercampus-grade-anchor';
+      card(id).querySelector('.course-banner').prepend(anchor);
+      await __settle();
+      return cardState(id);
+    };
+
+    window.__clickBadge = async function (id = '_101_1') {
+      await __settle();
+      const before = window.__cardClicks;
+      card(id).querySelector('[data-darkboard-card="grade"]').click();
+      card(id).querySelector('[data-darkboard-card="due"] summary').click();
+      card(id).querySelector('.course-title').click();
+      return { cardClicksFromOurs: window.__cardClicks - before - 1, cardStillClickable: window.__cardClicks - before >= 1 };
+    };  </script>
+</body>
+</html>

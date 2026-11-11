@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<!-- Pure CSS, so the gate attribute is set directly and no content script loads. -->
+<html lang="en" data-bb-dark>
+<head>
+  <meta charset="UTF-8" />
+  <title>Darkboard fixture — progress bars</title>
+
+  <script>
+    window.__cssReady = new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      const sheet = new URLSearchParams(location.search).get('css') || '../src/dark-mode.css';
+      link.href = sheet + '?cb=' + Date.now();
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  </script>
+  <script src="restyle.js"></script>
+
+  <!-- Stands in for Blackboard's light theme. Every colour here is wiped by
+       section 3's inherit rule, which is why the theme has to restate them.
+       The borders survive section 3 (it only resets background and colour),
+       which is what drew the outline in the user's screenshot. -->
+  <style>
+    .track   { position: relative; height: 10px; width: 240px; border: 1px solid #ccc;
+               border-radius: 5px; background-color: #fff; overflow: hidden; display: flex; }
+    .segment { height: 100%; border-radius: 5px; }
+    .completed, .makeStylescompletedSegment-0-2-41 { background-color: #6f2c3e; }
+    .started,   .makeStylesstartedSegment-0-2-42   { background-color: #d9b8c1; border: 1px solid #6f2c3e; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    section { margin: 12px 0; }
+    /* The live bar showed no band beside the track, so its wrapper is no
+       wider than the track; a full-width block here would add one. */
+    section > div { width: fit-content; }
+  </style>
+</head>
+<body>
+
+  <!-- Every bar sits inside the outline ancestors read from a live Iona course
+       page, so section 28 competes with whatever already reaches those. The
+       real progress bar was never observed: the shapes below are the
+       plausible ones, chosen to cover each way the old `> *` selectors could
+       land on the track. -->
+  <div class="root content-list-item makeStylescontentListItem-0-2-196">
+    <div class="makeStylesitemContainer-0-2-199 itemContainer">
+
+      <!-- The reported case: 2 of 6 started, nothing completed. The role sits
+           on a wrapper, so the track is the wrapper's direct child. -->
+      <section>
+        <div id="reported" role="progressbar" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100">
+          <div class="track makeStylestrack-0-2-40">
+            <div class="segment makeStylesstartedSegment-0-2-42" style="width: 33%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- No role; a kebab-case class on the wrapper. -->
+      <section>
+        <div id="kebab" class="content-progress-bar">
+          <div class="track">
+            <div class="segment started" style="width: 33%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- No role; JSS's camelCase class, which `progress-bar` never matched. -->
+      <section>
+        <div id="camel" class="makeStylesprogressBar-0-2-310">
+          <div class="track">
+            <div class="segment completed" style="width: 50%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- One element per state, the role on the track itself. -->
+      <section>
+        <div id="segmented" role="progressbar" aria-valuenow="33" class="track">
+          <div class="segment makeStylescompletedSegment-0-2-41" style="width: 33%"></div>
+          <div class="segment makeStylesstartedSegment-0-2-42" style="width: 17%"></div>
+          <div class="segment makeStylesnotStartedSegment-0-2-43" style="width: 50%"></div>
+        </div>
+      </section>
+
+      <!-- Nothing started: the track is the wrapper's only child and has no
+           children of its own, so it looks exactly like a fill. -->
+      <section>
+        <div id="zero" role="progressbar" aria-valuenow="0">
+          <div class="track"></div>
+        </div>
+      </section>
+
+      <!-- A screen-reader label inside the bar must never take a fill. -->
+      <section>
+        <div id="labelled" role="progressbar" aria-valuenow="50">
+          <span class="sr-only">50 percent</span>
+          <div class="track">
+            <div class="segment completed" style="width: 50%"></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- The generic shape fixture-semantics covers, kept here as a guard. -->
+  <div id="generic" role="progressbar" class="track" aria-valuenow="40">
+    <div class="progress-fill" style="height: 100%; width: 40%"></div>
+  </div>
+
+  <progress id="native" value="40" max="100"></progress>
+
+  <script>
+    window.__probe = function () {
+      const bg  = (el) => window.__computed(el, 'backgroundColor');
+      const img = (el) => window.__computed(el, 'backgroundImage');
+      // Read off :root rather than through a probe element: section 3 forces
+      // `background-color: inherit !important` onto any element added here.
+      const css = (name) => {
+        const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const [r, g, b] = hex.slice(1).match(/../g).map((pair) => parseInt(pair, 16));
+        return `rgb(${r}, ${g}, ${b})`;
+      };
+      const ACCENT = css('--accent-primary');
+      const TRACK  = css('--bg-tertiary');
+      const q = (sel) => document.querySelector(sel);
+      const striped = (el) => img(el).includes('repeating-linear-gradient');
+      const solid   = (el) => bg(el) === ACCENT && !striped(el);
+      const widthShare = (seg) =>
+        Math.round(seg.getBoundingClientRect().width / seg.parentElement.clientWidth * 100);
+
+      const reportedSeg = q('#reported .segment');
+      const segs = [...q('#segmented').children];
+
+      const result = {
+        tokens: { ACCENT, TRACK },
+        reported: {
+          trackBg: bg(q('#reported .track')),
+          startedBg: bg(reportedSeg),
+          startedShare: widthShare(reportedSeg),
+          trackIsNotAccent: bg(q('#reported .track')) === TRACK,
+          startedStriped: striped(reportedSeg),
+        },
+        kebab: {
+          trackIsNotAccent: bg(q('#kebab .track')) === TRACK,
+          startedStriped: striped(q('#kebab .segment')),
+        },
+        camel: {
+          trackIsNotAccent: bg(q('#camel .track')) === TRACK,
+          completedSolid: solid(q('#camel .segment')),
+        },
+        segmented: {
+          trackIsTrack: bg(q('#segmented')) === TRACK,
+          completedSolid: solid(segs[0]),
+          startedStriped: striped(segs[1]),
+          startedDistinctFromBoth: striped(segs[1]) && bg(segs[1]) !== ACCENT && bg(segs[1]) !== TRACK,
+          notStartedShowsTrack: bg(segs[2]) === TRACK && !striped(segs[2]),
+        },
+        zero: { trackIsNotAccent: bg(q('#zero .track')) === TRACK },
+        labelled: {
+          labelNotFilled: bg(q('#labelled .sr-only')) !== ACCENT,
+          trackIsNotAccent: bg(q('#labelled .track')) === TRACK,
+          completedSolid: solid(q('#labelled .segment')),
+        },
+        generic: {
+          trackIsTrack: bg(q('#generic')) === TRACK,
+          fillIsAccent: bg(q('#generic .progress-fill')) === ACCENT,
+        },
+      };
+
+      const failures = [];
+      for (const [bar, checks] of Object.entries(result)) {
+        if (bar === 'tokens') continue;
+        for (const [name, value] of Object.entries(checks)) {
+          if (value === false) failures.push(`${bar}.${name}`);
+        }
+      }
+      result.failures = failures;
+      return result;
+    };
+  </script>
+</body>
+</html>

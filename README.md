@@ -21,6 +21,12 @@ Theming a page you don't control is a few separate problems, and "write some dar
 
 There's also a grade colorizer that turns grades green, yellow or red. CSS can't do arithmetic, so the content script computes the percentage and sets a `data-grade-status` attribute for the stylesheet to key off. It's the smallest feature and my favorite.
 
+## Course cards
+
+Your course list shows each course's overall grade on its card, plus a "Due" section with anything overdue and everything due in the next two weeks. It starts closed, the header tells you how much is due and whether anything is late, and each course remembers whether you opened it. Every item links straight to the assignment.
+
+It uses the same Blackboard endpoints Ultra's own pages call, with the session you're already signed in with, and caches the results in the tab for ten minutes. Nothing is sent anywhere else. It works with dark mode on or off.
+
 ## Other schools (beta)
 
 Iona (`online.iona.edu`) works out of the box. For any other school, open your Blackboard, click the DarkBoard icon and choose **Enable on this school**. Chrome asks for access to that one site and nothing else.

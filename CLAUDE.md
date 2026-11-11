@@ -17,15 +17,17 @@ lives in `test/README.md` and in the rationale comments above each block of
 
 | Path | Role |
 |---|---|
-| `manifest.json` | Injects `src/accent.js`, then `src/content.js`, plus `src/dark-mode.css`, at `document_start` in **all frames** |
-| `src/content.js` | Gate, preference mirror, observers, inline-style passes, grade colorizer (~1,030 lines) |
-| `src/dark-mode.css` | The theme: palette tokens, then sections 1–36 (~2,280 lines, ~340 `!important`) |
+| `manifest.json` | Injects `src/accent.js`, `src/content.js`, `src/course-cards.js`, plus `src/dark-mode.css` and `src/course-cards.css`, at `document_start` in **all frames** |
+| `src/content.js` | Gate, preference mirror, observers, inline-style passes, grade colorizer (~1,040 lines) |
+| `src/course-cards.js` | Overall-grade badge and collapsible Due section on the course-list cards (see **Course cards**). Top frame only, always on, no `chrome.*` |
+| `src/course-cards.css` | The cards' light-mode styles and the card-grid fix, ungated; dark colours live in section 37 |
+| `src/dark-mode.css` | The theme: palette tokens, then sections 1–37 (~2,370 lines, ~350 `!important`) |
 | `src/accent.js` | Pure OKLCH maths deriving the accent ramp from one institution colour. Also `require`d by Node |
 | `src/background.js` | Service worker: keeps the `darkboard-sites` registration in step with granted schools, relays toggles to every themed tab, paints the toolbar badge, seeds the default on install |
 | `src/popup.js`, `popup.html` | Toggle UI, per-tab site panel (enable / beta + remove / scope note), static rating link. Fonts in `src/fonts/` |
 | `.github/ISSUE_TEMPLATE/school-report.md` | The popup's "Report a problem" target for beta schools, with the diagnostic snippet. Not shipped |
 | `test/` | Browser fixtures, `accent.test.js` (Node), helpers `contrast.js` and `restyle.js`, and `README.md` (the reference) |
-| `test/grades/fixture-gradebook.html` | The one fixture shaped from real-page evidence. **The `/grades` directory name is load-bearing** |
+| `test/grades/fixture-gradebook.html` | Shaped from real-page evidence (with `fixture-cards`, the only two). **The `/grades` directory name is load-bearing** |
 | `promo/*.html` | Store promo tiles rendered as pages, fonts base64-inlined, exported to JPEG/PNG in the browser |
 | `icons/` | 16/48/128 PNGs |
 | `googlef3331e5ec48014da.html` | Google Search Console verification token. **Never delete** |
@@ -136,6 +138,81 @@ schools; nothing is kept in storage.
   another school's public login page. Unverified: the theme on any other
   school's logged-in pages (there is no tester at another school).
 
+**Course cards.** `course-cards.js` decorates `/ultra/course` cards
+(`article#course-list-course-<courseId>`; Ultra also renders blank-id
+`course-list-course-` cards, which are skipped). Always on, for every student,
+independent of dark mode; there is no preference and no `chrome.*` call.
+- Data, same-origin with the student's session, the endpoints Ultra's own pages call:
+  - `GET /learn/api/public/v1/users/me` → the user id;
+  - `GET /learn/api/v1/calendars/todo/studentItems?since=now&until=+14d` →
+    `overdueItems` / `dueTodayItems` / `futureDueItems`, each item with
+    `column.courseId`. **A past `since` is a 400**; the server decides overdue;
+  - per course, `GET /learn/api/v1/courses/<id>/gradebook/columns` then
+    `…/gradebook/grades?limit=100&userId=<id>`;
+  - per **shown** Due item (≤ 3 per visible course),
+    `GET /learn/api/public/v1/courses/<id>/contents/<contentId>`. Its
+    `links[rel="alternate"]` ("User Interface View") is
+    `/ultra/redirect?redirectType=nautilus&courseId&contentId&parentId`:
+    Blackboard's own deep link, which opens assessments and LTI items alike.
+    `parentId` is only available here, so the link is fetched, not built.
+- Overall column: the single `externalGrade: true`, else the single
+  calculated (`calculationType` ≠ `NON_CALCULATED`) column, else one named
+  overall/total/final, else nothing.
+- Display: `displayGrade.grade` (a letter) when present, else
+  `displayGrade.score.toFixed(2) + '%'`. `score` is the percentage, not points.
+  Both were matched against what Ultra's own course gradebook shows (3 Iona
+  courses). Status comes from `statusForPercent` in `content.js`.
+- Due section: `<details>` on every decorated card once the due data
+  arrives, even with nothing due (`Due · 0`, "Nothing due in the next 2
+  weeks"), so rows line up.
+  - **Closed by default.** Each course's open state is remembered in
+    `localStorage['darkboard.cards.dueOpen']` (a JSON array of course ids on
+    Blackboard's origin) and re-applied when Ultra re-renders the card.
+  - Header `Due · <total in window>` plus `· N overdue` when anything is late;
+    the list itself still caps at 3.
+  - A failed due fetch draws no section at all, rather than "Due · 0"
+    everywhere.
+  - Each item links to its alternate link. The link is accepted only if it
+    is same-origin and under `/ultra/`; anything else, a 4xx, or a missing
+    `contentId` falls back to the course outline. A section is drawn only
+    once its course's links are resolved (`linksExpires`), so a link never
+    changes under the student.
+- **Ultra sets `<base href>` to its CDN**
+  (`//dmuwut6e40u5o.cloudfront.net/ultra/…`), so a relative href on an Ultra
+  page opens an S3 "NoSuchKey" page. Every href we create goes through
+  `ultraUrl()` (`new URL(path, location.origin)`), never a bare `/ultra/…`.
+  - The disclosure chevron is drawn in CSS, because Ultra's sheet strips the
+    native `<summary>` marker.
+- Card layout (measured live, BetterCampus off; BetterCampus rewrites it):
+  the list is a 3-column grid that stretches each card to its row's tallest.
+  `.element-details` is a CSS grid (columns 266px + 88px, five placed rows)
+  whose **title row is a flexible track**, so a stretched card opens a gap
+  between the title and "Open".
+  - Our section spans `grid-column: 1 / -1`.
+  - `course-cards.css` restates the rows as
+    `auto auto minmax(30px, auto) auto auto !important` with
+    `align-content: start` on every card in a list holding our section, so
+    spare height falls at the bottom. That template reproduces the native rows
+    exactly when unstretched.
+  - Ultra's CSS is cross-origin, so its declared template is unknown.
+- Cache: `sessionStorage['darkboard.cards.v3']`. Entries carry `expires`:
+  10 min for an answer (4xx included), 1 min for a transient failure, so a
+  failed request is never retried on every DOM mutation.
+- Steps aside on any card holding BetterCampus nodes
+  (`bettercampus-card-grade` / `bettercampus-grade-anchor`), including ones
+  decorated after ours, and never fetches for them.
+- Verified live (code injected into an Iona course list, not installed):
+  - the data path: 14 requests for 7 cards, badge values and due items
+    correct (before item links, which add one request per shown item);
+  - item links: all 5 of the student's due items (3 assessments, 2 LTI)
+    resolve to a same-origin `/ultra/redirect` with matching ids. Clicking
+    one through to the item was left to the student, because opening an
+    item can mark it started;
+  - the layout rule: with one card open, no gap on its neighbours;
+  - the drawn chevron.
+- Unverified: list view, letter/score-scale schemas beyond one letter course,
+  more than 100 grade rows, other schools.
+
 ## Stylesheet map (`src/dark-mode.css`)
 
 Unnumbered MUI blocks at the top (floating labels, backdrops/popovers, paper,
@@ -152,7 +229,8 @@ catchers) · 24 right sidebar · 25 announcements / messages toolbar · 26 globa
 `bb-*` web-component sweep · 27 ultimate fallback (+ institution maroon sniff) ·
 28 semantic state colours · 29 disabled · 30 nav is not primary buttons ·
 31 Blackboard's light artwork · 32 focus rings · 33 selection · 34 motion &
-forced colours · 35 peek-panel header · 36 calendar week strip.
+forced colours · 35 peek-panel header · 36 calendar week strip · 37 course
+cards (badge and Due list).
 
 **Surface ladder** (designed in CIE L*, each tier ≥3 L* from its neighbours;
 contrast ratio is the wrong metric between near-blacks):
@@ -204,6 +282,14 @@ exceeds (0,3,x); those ID selectors make that claim inaccurate.
   none` in the stream).
 - **`content.js` throws if evaluated twice** (top-level `const`s). Anything
   that loads it more than once needs a fresh frame, as `fixture-fouc` does.
+- **`course-cards.js` stays inside its IIFE.** Content scripts share one
+  lexical scope; a top-level `const` there that collides with `content.js`
+  throws at load and kills both. It reaches `statusForPercent` (a
+  `content.js` function declaration) through that shared scope and tolerates
+  its absence.
+- **Card nodes carry `data-darkboard-card`**, and a card BetterCampus
+  decorates loses ours by querying it. The grade colorizer skips anything
+  inside that marker, or it would nest a pill in the badge.
 
 Duplicated values — change every copy together:
 - Host patterns: `manifest.json` `host_permissions` and `content_scripts.matches`.
@@ -217,6 +303,11 @@ Duplicated values — change every copy together:
   background, content, and the stubs in every fixture.
 - Surface tokens: CSS `:root`, `accent.js` `SURFACES`, `THEME_SURFACE_TOKENS`
   in `content.js`.
+- Storage keys `darkboard.cards.v3` (sessionStorage) and
+  `darkboard.cards.dueOpen` (localStorage): `course-cards.js` and the
+  `fixture-cards` setup that clears them.
+- Marker `data-darkboard-card`: `course-cards.js`, `CARD_MARK_SELECTOR` in
+  `content.js`, `course-cards.css`, section 37.
 
 ## Side-effect traps — check these in every plan
 
@@ -224,11 +315,15 @@ If you touch… | …also check
 ---|---
 Any rule that sets `background-color` | Section 3 inheritance: a fill on a container **floods its whole subtree**. Guard substring/row selectors with `:not(:has(…))` so only the innermost match paints (see section 23 and the calendar `tr:hover` flood)
 A transparent/overlay rule | Sections 18, 26 (`[class*="bb-"]` matches `bb-offcanvas-overlay`), 27 — later equal-specificity rules win on source order and have undone fixes before (section 10 vs 26)
+Section 26's `[class*="bb-"]` sweep | It paints `--bg-primary` on *anything* whose class contains `bb-`, inline text included: `bb-ui-username` (inside every `bb-username`) was a near-black box on each card. Exempt by adding to its `:not(:where(…))`; a plain `:not()` raises the rule's specificity over everything it now ties or loses to
 A `:hover` or `:focus-within` rule | `:focus-within` propagates to every ancestor, so a flood *persists*. FullCalendar rows must not hover
 Section 8 buttons | Calendar day buttons (section 36), `svg:only-child` icon detection, anchors styled as buttons, the primary CTA rim
 A palette token | Every measured ratio in `test/README.md`, `accent.js` `SURFACES`, the `theme()` surface set in `content.js` (it skips surfaces the theme already painted)
-Grade regexes or guards | Date/counter/progress words, heading exclusion, `/grades` path rule; both `fixture-grades.html` and `grades/fixture-gradebook.html`
-How `content.js` finds anything in the DOM | Blackboard's real DOM differs from every fixture except the gradebook one. Ask for a live-page diagnostic first
+Progress-bar rules (end of section 28) | Never fill `> *` of a bar: with the role or class on a wrapper, that child is the track (the "all maroon" report). Fills are empty `div`/`span` leaves. Ultra's JSS classes are camelCase `makeStyles<name>-0-2-N`, so list `progressBar` beside `progress-bar` and never key on the `-0-2-N` suffix. `fixture-progress`
+Grade regexes or guards | Date/counter/progress words, heading exclusion, `/grades` path rule; both `fixture-grades.html` and `grades/fixture-gradebook.html`. The 90/80/70 thresholds (`statusForPercent`) also colour the course-card badge
+Anything that builds a URL on an Ultra page | Ultra's `<base href>` points at its CDN: a relative href opens an S3 error. Build with `new URL(path, location.origin)`. `fixture-cards` inserts a CDN `<base>` and checks `linksSameOrigin`
+`course-cards.js` endpoints, selectors or cache | Requests per load (`fixture-cards` cold = 2 + 2×cards + shown due items, warm = 0); a failure must still make the entry fresh, or every mutation refetches; BetterCampus step-aside; the card is click-to-invoke, so our links stop propagation. The card's details area is a CSS grid with a flexible title row: anything added must place itself (`grid-column: 1 / -1`), and anything that changes a card's height stretches its whole row (`fixture-cards` `__openDue`, `gap` must stay 0)
+How `content.js` finds anything in the DOM | Blackboard's real DOM differs from every fixture except the gradebook and cards ones. Ask for a live-page diagnostic first
 A new inline-style pass | Add it inside `runStreamPass`'s disconnect window, give it a marker, add its revert to `stopEnhancements`, make it idempotent (mark + priority check)
 Observer config or debounce | Hidden tabs pause rAF; `MAX_ROOTS` widening; `characterData` is how Angular text rewrites are seen
 Host patterns, message type, storage key | Every copy listed above, the popup scope note, fixture stubs
@@ -257,12 +352,15 @@ Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour
 | `fixture-surfaces`, `fixture-panel` | Surface ladder tiers; ID-level panel header |
 | `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes; which elements hover; focus/selection/motion/scrollbar |
 | `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label |
+| `fixture-progress` | Progress-bar track vs fill vs started stripes across plausible shapes (the real learning-module bar was never observed) |
+| `fixture-cards` | Course-card badge, collapsible Due section and the card-row layout, and the instructor name sitting on the card in dark mode (`instructorOffCard` empty), from live-shaped markup and API stubs (`?dark`, `?warm`, `?keepOpen`, `?cardsCss=`, `?css=`; `__openDue`, `__layout`, `__rerender`, `__lateBetterCampus`, `__clickBadge`) |
 | `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo); popup contrast/copy (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`); scan cost (`__run`) |
 
 - **Before/after comparisons:** `git show HEAD:src/content.js > test/.tmp-old-content.js`
   then `?impl=.tmp-old-content.js` (fouc, perf, gradebook); or
   `git show HEAD:src/dark-mode.css > test/.tmp-old.css` then `?css=.tmp-old.css`
-  (hover, focus, overrides, panel, overlay). `test/.tmp-*` is gitignored.
+  (hover, focus, overrides, panel, overlay, progress, cards with `?dark`).
+  `test/.tmp-*` is gitignored.
 - **Caching:** fixtures cache-bust their assets but not themselves — add
   `?v=N` after editing a fixture's own HTML.
 - **Hidden tabs lie.** Chrome defers style recalculation in a hidden tab, so
@@ -307,9 +405,9 @@ is. Ask when a decision is the user's to make.
 - Commit subjects are imperative and describe the user-visible effect ("Stop
   the…", "Make the…", "Give the calendar back…"); the body explains the cause
   and what was measured.
-- **Release:** bump `manifest.json` `version` and the README badge, then zip
-  `manifest.json popup.html icons/ src/` into `darkboard-<version>.zip`
-  (gitignored — never commit it).
+- **Release:** bump `manifest.json` `version` (the README no longer carries a
+  version badge), then zip `manifest.json popup.html icons/ src/` into
+  `darkboard-<version>.zip` (gitignored — never commit it).
 - Promo tiles: nothing real (course or student names) goes on them.
 
 Known, deliberate limitations: a bare text node beside an icon counts as

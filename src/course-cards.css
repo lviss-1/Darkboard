@@ -1,0 +1,181 @@
+/* Course cards (course-cards.js): the light-mode presentation.
+   Ungated, because the cards work with dark mode off; dark-mode.css section
+   37 restates them under html[data-bb-dark]. Every selector is pinned to our
+   own [data-darkboard-card] marker; the one rule that reaches a Blackboard
+   element (the details grid's align-content) only matches a card holding
+   our section. The attribute plus the class puts these at (0,2,1), above
+   Blackboard's (0,1,1) card link rules.
+
+   Contrast, measured on the white card: text #1f1f27 16.4:1, muted #5c5c66
+   (dates, the header count, "Nothing due") 6.6:1, overdue #b91c1c 6.5:1.
+   The status dots are graphics and clear 3:1:
+   good #15803d 5.0:1, fair #4d7c0f 5.0:1, average #b45309 5.0:1, poor
+   #b91c1c 6.5:1. */
+
+a[data-darkboard-card].darkboard-card-grade {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid rgba(31, 31, 39, 0.18);
+  border-radius: 999px;
+  background-color: #ffffff;
+  color: #1f1f27;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+a[data-darkboard-card].darkboard-card-grade--inline {
+  position: static;
+  margin: 0 0 6px;
+  box-shadow: none;
+}
+
+a[data-darkboard-card].darkboard-card-grade[data-grade-status]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background-color: currentColor;
+}
+
+a[data-darkboard-card].darkboard-card-grade[data-grade-status="good"]::before    { background-color: #15803d; }
+a[data-darkboard-card].darkboard-card-grade[data-grade-status="fair"]::before    { background-color: #4d7c0f; }
+a[data-darkboard-card].darkboard-card-grade[data-grade-status="average"]::before { background-color: #b45309; }
+a[data-darkboard-card].darkboard-card-grade[data-grade-status="poor"]::before    { background-color: #b91c1c; }
+
+/* Ultra lays the card's details out as a CSS grid: two columns (266px and an
+   88px one for the star), five placed rows. An appended child is auto-placed
+   into the first column only, so the section claims the full width itself.
+   `clear` is for list view, whose layout has not been measured and may not
+   be a grid. */
+section[data-darkboard-card].darkboard-card-due {
+  grid-column: 1 / -1;
+  clear: both;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 12px 12px;
+  color: #1f1f27;
+  font-size: 14px;
+}
+
+/* The dead space. Every card in a row takes the tallest card's height, and
+   Ultra's details grid gives the title row a flexible track: stretched to
+   404px on the live page, the title row went from 21px to 165px, so the
+   title and "Open" drifted apart on every card beside one with an open Due
+   list. align-content cannot pack a grid that has a flexible track, so the
+   rows are restated with the title row as auto, and the spare height falls
+   at the bottom of the card instead.
+
+   The stylesheet is cross-origin, so the declared template cannot be read;
+   this one reproduces the measured native rows exactly when unstretched
+   (23 / 21 / 30 / 3 / 45px). The 30px floor is the status row's own height.
+   If Ultra changes its card, the risk is spacing, not overlap.
+
+   !important because Ultra's rule's specificity is unknown. Scoped by :has
+   to lists holding our section: every card in such a list needs it, because
+   a card we do not decorate (Ultra's blank-id cards, one BetterCampus owns)
+   is still stretched by our header beside it. The per-card selector covers
+   a list whose container is not .course-org-list. */
+.element-details:has(> section[data-darkboard-card="due"]),
+.course-org-list:has(section[data-darkboard-card="due"]) .element-details {
+  grid-template-rows: auto auto minmax(30px, auto) auto auto !important;
+  align-content: start;
+}
+
+/* Ultra's sheet removes the native disclosure marker, which left "Due · 3"
+   looking like a plain label on the live page. The marker is drawn here
+   instead, so it looks the same with or without Ultra's rule. */
+section[data-darkboard-card].darkboard-card-due summary {
+  display: block;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 4px 0;
+  width: max-content;
+}
+
+section[data-darkboard-card].darkboard-card-due summary::-webkit-details-marker {
+  display: none;
+}
+
+section[data-darkboard-card].darkboard-card-due summary::before {
+  content: "";
+  display: inline-block;
+  margin: 0 8px 1px 0;
+  border-left: 6px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  vertical-align: middle;
+}
+
+section[data-darkboard-card].darkboard-card-due details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+section[data-darkboard-card].darkboard-card-due .darkboard-card-due__count {
+  color: #5c5c66;
+  font-weight: 400;
+}
+
+section[data-darkboard-card].darkboard-card-due .darkboard-card-due__overdue {
+  color: #b91c1c;
+}
+
+section[data-darkboard-card].darkboard-card-due .darkboard-card-due__empty {
+  margin: 2px 0 0;
+  color: #5c5c66;
+  font-size: 13px;
+}
+
+section[data-darkboard-card].darkboard-card-due ul {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+section[data-darkboard-card].darkboard-card-due li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+/* Titles run long ("Assignment 7: Web interface using AI T…"), and the date
+   must stay readable beside them. */
+section[data-darkboard-card].darkboard-card-due li a {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+}
+
+section[data-darkboard-card].darkboard-card-due li a:hover,
+section[data-darkboard-card].darkboard-card-due li a:focus-visible {
+  text-decoration: underline;
+}
+
+section[data-darkboard-card].darkboard-card-due time {
+  flex: none;
+  color: #5c5c66;
+  font-size: 13px;
+}
+
+section[data-darkboard-card].darkboard-card-due li[data-state="overdue"] time {
+  color: #b91c1c;
+  font-weight: 700;
+}

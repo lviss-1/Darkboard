@@ -7,7 +7,7 @@ Dark mode for Blackboard Ultra. One install, zero configuration, zero flash of w
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Published-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/blackboard-dark-mode-dark/ogkjalalkednannikfgjhcnmgcepkeip)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-orange?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.3.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)
 
 ## The problem
 
@@ -30,6 +30,8 @@ The interesting part of this project isn't "I added dark CSS" — it's three spe
 **Iframes in separate document contexts.** Blackboard renders significant content inside iframes, which don't inherit the parent page's injected styles. Solved with `all_frames: true` in the manifest so the content script runs in every frame, not just the top one.
 
 There's also a grade colorizer (parses grade strings from the DOM, computes percentages client-side since CSS can't do arithmetic, and stamps a `data-grade-status` attribute the stylesheet keys off) — it's a smaller feature but a fun one if you're looking at the code.
+
+**Course cards.** The course list shows each course's overall grade on its card, and a short "Due" list of overdue and upcoming work (next two weeks, three per course). It reads the same Blackboard endpoints Ultra's own pages use, with your existing session: one request for every course's due items, two per course for the grade, cached for ten minutes in the tab. Nothing is sent anywhere else. It has its own switch in the popup and works with dark mode on or off.
 
 ## Stack
 

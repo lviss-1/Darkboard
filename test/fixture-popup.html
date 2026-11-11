@@ -48,6 +48,7 @@
     const STUB = `<base href="../">
       <script>
         window.__permissionCalls = [];
+        window.__storageSets = [];
         window.chrome = {
           runtime: {
             getManifest: () => ({
@@ -63,7 +64,7 @@
             // assertion is that the link is unaffected by its absence.
             id: ${NO_ID ? 'undefined' : "'ogkjalalkednannikfgjhcnmgcepkeip'"},
           },
-          storage: { local: { get: (k, cb) => cb({}), set() {} } },
+          storage: { local: { get: (k, cb) => cb({}), set: (v) => window.__storageSets.push(v) } },
           tabs: {
             query: (q, cb) => {
               const hit = !q.url || ${JSON.stringify(SITE)} === 'static';
@@ -141,6 +142,21 @@
         statusIsLive:
           doc.getElementById('statusText').getAttribute('aria-live') === 'polite',
 
+        // The course-cards switch: absent preference means on, like dark mode,
+        // and its label must name the right input.
+        cards: (() => {
+          const input = doc.getElementById('cardsToggle');
+          const label = doc.querySelector('label[for="cardsToggle"]');
+          const subtitle = doc.querySelector('#cardsCard .toggle-subtitle');
+          const surface = win.getComputedStyle(doc.getElementById('cardsCard')).backgroundColor;
+          return {
+            checkedByDefault: input.checked,
+            labelled: !!label && label.textContent.trim() === 'COURSE CARDS',
+            titleContrast: __contrast(win.getComputedStyle(label).color, surface),
+            subtitleContrast: __contrast(win.getComputedStyle(subtitle).color, surface),
+          };
+        })(),
+
         // The rating prompt. It must point at this extension's own published
         // listing, and must do so whether or not a runtime id exists — an
         // unpacked build gets a locally generated one, which is how this link
@@ -178,6 +194,13 @@
           };
         })(),
       };
+    };
+
+    // Flips the course-cards switch and reports what was written to storage.
+    window.__clickCardsToggle = async function () {
+      const doc = await window.__ready;
+      doc.getElementById('cardsToggle').click();
+      return { checked: doc.getElementById('cardsToggle').checked, sets: doc.defaultView.__storageSets };
     };
 
     // Clicks the site panel's button and reports what the popup asked Chrome

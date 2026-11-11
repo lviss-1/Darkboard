@@ -2330,3 +2330,47 @@ html[data-bb-dark] body [class*="week-day"] button[class*="fc-today"]:hover {
   background-color: var(--accent-hover) !important;
   color: var(--text-on-accent) !important;
 }
+
+/* ─── 37. COURSE CARDS — GRADE BADGE AND DUE LIST ───────────────────────
+   course-cards.js adds both; course-cards.css draws them for light mode.
+   Section 3 flattens every background and colour in that sheet, so they are
+   restated here.
+
+   The badge carries .darkboard-pill and data-grade-status, so section 13
+   already gives it the status fill and the page-black text that clears AAA
+   on all four. Only a badge with no status (content.js unavailable) needs a
+   fill of its own, and the light sheet's status dot is dropped: on a filled
+   pill it is a dot of the same colour as the pill.
+
+   The list paints no background. Section 3 makes it inherit the card, and a
+   fill on the section would flood its whole subtree.
+
+   Specificity: everything here is at least (0,3,2), above section 4's
+   (0,1,2) li/span pins, the `a` link colour at (0,1,1) and the (0,2,1)
+   muted-text tier that already reaches <time>. */
+html[data-bb-dark] body a[data-darkboard-card].darkboard-card-grade:not([data-grade-status]) {
+  background-color: var(--bg-raised) !important;
+  color: var(--text-heading) !important;
+  border: 1px solid var(--border-interactive) !important;
+}
+
+html[data-bb-dark] body a[data-darkboard-card].darkboard-card-grade::before {
+  content: none !important;
+}
+
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due summary {
+  color: var(--text-heading) !important;
+}
+
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due li,
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due li a {
+  color: var(--text-main) !important;
+}
+
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due time {
+  color: var(--text-muted) !important;
+}
+
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due li[data-state="overdue"] time {
+  color: var(--accent-danger) !important;
+}

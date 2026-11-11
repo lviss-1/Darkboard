@@ -201,6 +201,19 @@ async function removeSite(site) {
 // they are in the markup.
 resolveSite().then(renderSite).catch(() => {});
 
+// The course cards follow chrome.storage.onChanged in every Blackboard tab, so
+// writing the preference is the whole job; there is no relay to send.
+const CARDS_KEY = 'courseCardsEnabled';
+const cardsToggle = document.getElementById('cardsToggle');
+
+chrome.storage.local.get(CARDS_KEY, (result) => {
+  cardsToggle.checked = chrome.runtime.lastError ? true : result[CARDS_KEY] !== false;
+});
+
+cardsToggle.addEventListener('change', () => {
+  chrome.storage.local.set({ [CARDS_KEY]: cardsToggle.checked });
+});
+
 toggle.addEventListener('change', () => {
   const enabled = toggle.checked;
 

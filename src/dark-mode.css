@@ -1774,8 +1774,16 @@ html[data-bb-dark] bb-announcements [role="row"]:hover {
 
    This is the one that blacks out the page. Section 10's own force was the
    same mistake in a milder form: translucent and blurred rather than opaque,
-   so the page went dark and soft instead of dark and flat. */
-html[data-bb-dark] [class*="bb-"]:not([class*="overlay" i]):not([class*="backdrop" i]):not([class*="peek" i]),
+   so the page went dark and soft instead of dark and flat.
+
+   The same substring match caught `bb-ui-username`, the React element Ultra
+   renders inside every `bb-username`. A name is inline text, not a surface,
+   but the sweep gave it the page canvas, so each instructor name on the
+   course cards sat in a near-black box on the card fill. Excluded, it falls
+   back to section 3 and inherits whatever it sits on. The exclusion is wrapped
+   in `:where()` so it adds no specificity: a plain `:not()` would raise this
+   rule over every other rule it currently ties or loses to on `bb-` elements. */
+html[data-bb-dark] [class*="bb-"]:not([class*="overlay" i]):not([class*="backdrop" i]):not([class*="peek" i]):not(:where([class*="bb-ui-username"])),
 html[data-bb-dark] bb-base,
 html[data-bb-dark] bb-router-outlet,
 html[data-bb-dark] bb-learn-root,

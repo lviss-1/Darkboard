@@ -315,6 +315,7 @@ If you touch… | …also check
 ---|---
 Any rule that sets `background-color` | Section 3 inheritance: a fill on a container **floods its whole subtree**. Guard substring/row selectors with `:not(:has(…))` so only the innermost match paints (see section 23 and the calendar `tr:hover` flood)
 A transparent/overlay rule | Sections 18, 26 (`[class*="bb-"]` matches `bb-offcanvas-overlay`), 27 — later equal-specificity rules win on source order and have undone fixes before (section 10 vs 26)
+Section 26's `[class*="bb-"]` sweep | It paints `--bg-primary` on *anything* whose class contains `bb-`, inline text included: `bb-ui-username` (inside every `bb-username`) was a near-black box on each card. Exempt by adding to its `:not(:where(…))`; a plain `:not()` raises the rule's specificity over everything it now ties or loses to
 A `:hover` or `:focus-within` rule | `:focus-within` propagates to every ancestor, so a flood *persists*. FullCalendar rows must not hover
 Section 8 buttons | Calendar day buttons (section 36), `svg:only-child` icon detection, anchors styled as buttons, the primary CTA rim
 A palette token | Every measured ratio in `test/README.md`, `accent.js` `SURFACES`, the `theme()` surface set in `content.js` (it skips surfaces the theme already painted)
@@ -352,13 +353,14 @@ Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour
 | `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes; which elements hover; focus/selection/motion/scrollbar |
 | `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label |
 | `fixture-progress` | Progress-bar track vs fill vs started stripes across plausible shapes (the real learning-module bar was never observed) |
-| `fixture-cards` | Course-card badge, collapsible Due section and the card-row layout, from live-shaped markup and API stubs (`?dark`, `?warm`, `?keepOpen`, `?cardsCss=`; `__openDue`, `__layout`, `__rerender`, `__lateBetterCampus`, `__clickBadge`) |
+| `fixture-cards` | Course-card badge, collapsible Due section and the card-row layout, and the instructor name sitting on the card in dark mode (`instructorOffCard` empty), from live-shaped markup and API stubs (`?dark`, `?warm`, `?keepOpen`, `?cardsCss=`, `?css=`; `__openDue`, `__layout`, `__rerender`, `__lateBetterCampus`, `__clickBadge`) |
 | `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo); popup contrast/copy (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`); scan cost (`__run`) |
 
 - **Before/after comparisons:** `git show HEAD:src/content.js > test/.tmp-old-content.js`
   then `?impl=.tmp-old-content.js` (fouc, perf, gradebook); or
   `git show HEAD:src/dark-mode.css > test/.tmp-old.css` then `?css=.tmp-old.css`
-  (hover, focus, overrides, panel, overlay). `test/.tmp-*` is gitignored.
+  (hover, focus, overrides, panel, overlay, progress, cards with `?dark`).
+  `test/.tmp-*` is gitignored.
 - **Caching:** fixtures cache-bust their assets but not themselves — add
   `?v=N` after editing a fixture's own HTML.
 - **Hidden tabs lie.** Chrome defers style recalculation in a hidden tab, so

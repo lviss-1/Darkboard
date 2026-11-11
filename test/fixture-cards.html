@@ -8,7 +8,8 @@
                 is Blackboard's light theme and only course-cards.css applies.
      ?warm      keeps sessionStorage, so the second load runs from the cache.
      ?keepOpen  keeps the remembered open Due sections from the last load.
-     ?cardsCss= swaps course-cards.css, for before/after comparisons. -->
+     ?cardsCss= swaps course-cards.css, for before/after comparisons.
+     ?css=      swaps dark-mode.css the same way (only with ?dark). -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -37,7 +38,7 @@
     });
     window.__cssReady = Promise.all([
       sheet(params.get('cardsCss') || '../src/course-cards.css'),
-      window.__dark ? sheet('../src/dark-mode.css') : Promise.resolve(),
+      window.__dark ? sheet(params.get('css') || '../src/dark-mode.css') : Promise.resolve(),
     ]);
 
     // Both observers debounce through requestAnimationFrame, which a hidden
@@ -198,7 +199,7 @@
           <div class="multi-column-course-id">1760.4725</div>
           <div class="course-status"><span><span class="status-text">Open</span></span></div>
           <hr class="separator" />
-          <div class="small-8 status-bar visibility"><div class="basic-info"><div class="instructors"><div class="ellipsis">Instructor</div></div></div></div>
+          <div class="small-8 status-bar visibility"><div class="basic-info"><div class="instructors"><div class="ellipsis"><bb-username class="user-name username course_user_900_1"><span class="username-accommodation-icon"></span><bb-ui-username class="bb-ui-username"><div class="makeStylesroot-0-2-1"><div class="makeStylesuserPronunciation-0-2-2"><bdi class="makeStylesbaseText-0-2-3">Instructor</bdi></div></div></bb-ui-username></bb-username></div></div></div></div>
           <div class="more-info"><button type="button">More</button></div>
         </div>
       </article>
@@ -354,6 +355,8 @@
       const upcoming = article.querySelector('[data-darkboard-card="due"] li[data-state="upcoming"] time');
       const cardBg = __computed(article, 'backgroundColor');
       const ratio = (el) => el && __contrast(__computed(el, 'color'), cardBg);
+      // Every layer of the instructor name, host to text, must show the card.
+      const nameLayers = [...article.querySelectorAll('.instructors bb-username, .instructors bb-username *')];
       // The list items only lay out while open, but colour does not depend on
       // it; the empty-state line comes from a card with nothing due.
       return {
@@ -366,6 +369,11 @@
         headerCount: ratio(article.querySelector('.darkboard-card-due__count')),
         headerOverdue: ratio(article.querySelector('.darkboard-card-due__overdue')),
         emptyText: ratio(card('_103_1').querySelector('.darkboard-card-due__empty')),
+        instructorText: ratio(article.querySelector('.instructors bdi')),
+        // Dark only: in Blackboard's light theme the layers are transparent.
+        instructorOffCard: window.__dark ? nameLayers
+          .filter((el) => __computed(el, 'backgroundColor') !== cardBg)
+          .map((el) => el.tagName.toLowerCase() + ' ' + __computed(el, 'backgroundColor')) : null,
       };
     }
 

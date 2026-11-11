@@ -185,6 +185,18 @@ Query parameters:
   with all of them closed.
 - `?cardsCss=` swaps the card stylesheet (`git show HEAD:src/course-cards.css >
   test/.tmp-old-cards.css`, then `?cardsCss=.tmp-old-cards.css`).
+- `?css=` swaps `dark-mode.css` the same way; it only applies with `?dark`.
+
+**The instructor name.** Each card's status line carries the live
+`bb-username` → `bb-ui-username` → `div` → `div` → `bdi` chain, read from the
+Iona course list. Section 26's `[class*="bb-"]` sweep matched
+`bb-ui-username` and painted it the page canvas, so every name sat in a
+near-black box on the card. `__probe().contrast.instructorOffCard` lists
+each layer whose background differs from the card's, in `?dark` only (in
+the light theme they are transparent): four layers at `rgb(10, 10, 12)` with
+`?css=.tmp-old.css` from before the fix, `[]` after. The same four were
+measured on the live page before the fix, and on that page nothing else in
+the cards matched the sweep.
 
 | Card | Expected |
 |---|---|
@@ -227,6 +239,7 @@ Contrast, measured by `__probe().contrast` against the card:
 | Header "Due" / item title | 16.36 | 14.10 |
 | Header count, date, "Nothing due" | 6.61 | 6.59 |
 | Header overdue flag, overdue date | 6.47 | 5.91 |
+| Instructor name | 21.00 | 14.10 |
 
 The fixture's `requestAnimationFrame` races a 50 ms timer. An occluded
 Browser pane reports `document.hidden` false and still never runs a frame,

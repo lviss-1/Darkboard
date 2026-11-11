@@ -31,7 +31,7 @@ The interesting part of this project isn't "I added dark CSS" — it's three spe
 
 There's also a grade colorizer (parses grade strings from the DOM, computes percentages client-side since CSS can't do arithmetic, and stamps a `data-grade-status` attribute the stylesheet keys off) — it's a smaller feature but a fun one if you're looking at the code.
 
-**Course cards.** The course list shows each course's overall grade on its card, and a short "Due" list of overdue and upcoming work (next two weeks, three per course). It reads the same Blackboard endpoints Ultra's own pages use, with your existing session: one request for every course's due items, two per course for the grade, cached for ten minutes in the tab. Nothing is sent anywhere else. It has its own switch in the popup and works with dark mode on or off.
+**Course cards.** The course list shows each course's overall grade on its card, and a collapsible "Due" section with the overdue and upcoming work from the next two weeks. The section starts closed, its header says how much is due and whether anything is late, and each course remembers whether you opened it. It reads the same Blackboard endpoints Ultra's own pages use, with your existing session: one request for every course's due items, two per course for the grade, cached for ten minutes in the tab. Nothing is sent anywhere else. It is always on, with dark mode on or off.
 
 ## Stack
 

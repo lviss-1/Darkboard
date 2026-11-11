@@ -2371,6 +2371,15 @@ html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due time {
   color: var(--text-muted) !important;
 }
 
-html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due li[data-state="overdue"] time {
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due li[data-state="overdue"] time,
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboard-card-due__overdue {
   color: var(--accent-danger) !important;
+}
+
+/* The header count and the empty-state line recede like the dates. The
+   section 4 span pin is (0,1,2) and would otherwise hold the count at
+   --text-main. */
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboard-card-due__count,
+html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboard-card-due__empty {
+  color: var(--text-muted) !important;
 }

@@ -121,11 +121,6 @@
       overflow: hidden;
     }
 
-    .card-secondary {
-      margin-top: 10px;
-      padding: 14px 18px;
-    }
-
     .toggle-row {
       display: flex;
       align-items: center;
@@ -432,21 +427,6 @@
     <div class="status-row">
       <div class="status-dot"></div>
       <span class="status-text" id="statusText" aria-live="polite">INACTIVE</span>
-    </div>
-  </div>
-
-  <!-- Independent of dark mode: course-cards.js reads its own preference, so
-       the cards work on a light page too. -->
-  <div class="card card-secondary" id="cardsCard">
-    <div class="toggle-row">
-      <div>
-        <label class="toggle-title" for="cardsToggle">COURSE CARDS</label>
-        <div class="toggle-subtitle">Grades &amp; due dates</div>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="cardsToggle" aria-label="Toggle course card grades and due dates" />
-        <span class="track"></span>
-      </label>
     </div>
   </div>
 

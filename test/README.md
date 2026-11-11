@@ -147,49 +147,71 @@ apart.
 
 ## fixture-cards.html
 
-Covers `src/course-cards.js`: the overall-grade badge and the Due list on the
-course-list cards. The card markup (`article#course-list-course-<id>` with a
-146px `.course-banner` and a float-laid `.element-details`) and the API
-response shapes were read from a live Iona course list. The values are
-invented. `window.fetch` is stubbed for the four `/learn/api/` endpoints and
-counts every request. `chrome.storage` is stubbed with `onChanged`, so
-`__toggle` exercises the real preference path.
+Covers `src/course-cards.js` and `src/course-cards.css`: the overall-grade
+badge, the collapsible Due section, and the card-row layout. The markup and
+its geometry were read from a live Iona course list with BetterCampus off,
+because BetterCampus rewrites the card into floats:
+- the list is a 3-column grid that stretches each card to its row;
+- the article is a 260px `row wrap` flexbox: a 128px banner, then the details
+  filling the rest;
+- `.element-details` is a two-column grid with five placed rows, the title row
+  flexible and the status row 30px.
 
-`?dark` turns the gate on and loads `dark-mode.css`; without it the page is
-light and only `course-cards.css` applies. `?warm` keeps sessionStorage, so a
-reload runs from the cache.
+Ultra's CSS is cross-origin, so the fixture reproduces that geometry rather
+than the declared rules. The API response shapes are live, the values
+invented. `window.fetch` is stubbed for the four `/learn/api/` endpoints and
+counts every request.
+
+Query parameters:
+- `?dark` turns the gate on and loads `dark-mode.css`; without it the page is
+  light and only `course-cards.css` applies.
+- `?warm` keeps sessionStorage, so a reload runs from the cache.
+- `?keepOpen` keeps the remembered open sections; otherwise every load starts
+  with all of them closed.
+- `?cardsCss=` swaps the card stylesheet (`git show HEAD:src/course-cards.css >
+  test/.tmp-old-cards.css`, then `?cardsCss=.tmp-old-cards.css`).
 
 | Card | Expected |
 |---|---|
-| `_101_1` external overall grade | Badge `98.05%`, `good`, 12px from the banner's top-left; Due: Overdue, Today, then the soonest upcoming (cap 3) |
-| `_102_1` one calculated column with a letter | Badge `B`, `fair`, label `Overall grade B, 84.50%`; one upcoming item |
-| `_103_1` gradebook 403 | Nothing |
-| `_104_1` two calculated columns, neither named overall | No badge (ambiguous) |
+| `_101_1` external overall grade | Badge `98.05%`, `good`, 12px from the banner's top-left; header `Due · 4 · 1 overdue`; list Overdue, Today, then the soonest upcoming (cap 3) |
+| `_102_1` one calculated column with a letter | Badge `B`, `fair`, label `Overall grade B, 84.50%`; header `Due · 1` |
+| `_103_1` gradebook 403 | No badge; header `Due · 0`, body "Nothing due in the next 2 weeks" |
+| `_104_1` two calculated columns, neither named overall | No badge (ambiguous); `Due · 0` |
 | `_105_1` already decorated by BetterCampus | Nothing, and no request for it |
 | blank id `course-list-course-` | Nothing, and no request for it |
-| `_107_1` overall grade not released | No badge |
+| `_107_1` overall grade not released | No badge; `Due · 0` |
+
+Every section is closed by default, spans the full card width (`spansFull`),
+and its header carries an `aria-label` sentence ("Due soon: 4 items,
+1 overdue").
 
 ```js
-await __probe()          // requests 10 cold (1 user + 1 due + 5 columns + 3 grades), nestedPill false
-await __clickBadge()     // cardClicksFromOurs 0; the card's own title still opens it
-await __rerender()       // replaced article re-decorated once, newRequests 0
+await __probe()            // requests 10 cold (1 user + 1 due + 5 columns + 3 grades); every layout gap 0
+await __openDue('_101_1')  // open; remembered ['_101_1']; row 1 grows, every gap still 0
+await __rerender()         // replaced article re-decorated once, still open, newRequests 0
+await __clickBadge()       // cardClicksFromOurs 0; the card's own title still opens it
 await __lateBetterCampus() // _102_1 marks 0
-await __toggle(false)    // marks 0, newRequests 0
-await __toggle(true)     // decorations back, newRequests 0
 ```
 
-`?warm` after a cold load gives `requests: 0`. Switching off while requests
-are in flight sends nothing after the switch: the queue checks the abort
-signal, and the stub, like a real `fetch`, refuses an aborted signal.
+`?warm&keepOpen` after that gives `requests: 0`, with `_101_1` open and the
+rest closed.
+
+**The dead-space check.** `__layout()` reports each card's `gap`: the distance
+from the title text (the `<h4>`, not the link, which stretches with its grid
+row) to the status line. With the committed `course-cards.css` before the fix,
+opening `_101_1` gave its neighbours a 75px gap mid-card, the reported bug.
+With the fix, every card stays at 0 and the spare height falls at the bottom.
+The same rule, injected into the live course list, gave 0 on the open card's
+neighbours.
 
 Contrast, measured by `__probe().contrast` against the card:
 
 | | Light | Dark |
 |---|---|---|
 | Badge text on its fill | 16.36 | 11.35 (section 13's `good` pill) |
-| Item title | 16.36 | 14.10 |
-| Date | 6.61 | 6.59 |
-| Overdue | 6.47 | 5.91 |
+| Header "Due" / item title | 16.36 | 14.10 |
+| Header count, date, "Nothing due" | 6.61 | 6.59 |
+| Header overdue flag, overdue date | 6.47 | 5.91 |
 
 The fixture's `requestAnimationFrame` races a 50 ms timer. An occluded
 Browser pane reports `document.hidden` false and still never runs a frame,

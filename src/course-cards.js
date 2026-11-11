@@ -5,8 +5,9 @@
  *   - a badge on the banner with the overall grade, as Ultra itself shows it
  *     inside the course (a letter when the grading schema has one, otherwise
  *     the percentage to two places);
- *   - a "Due" list under the card: overdue first, then soonest, at most three,
- *     from the next two weeks.
+ *   - a collapsible "Due" section under the card, closed until the student
+ *     opens it, remembered per course. Its header carries the count and any
+ *     overdue work, so a closed section still says whether to look.
  *
  * Everything comes from the endpoints Ultra's own pages already call, made
  * same-origin with the student's session: one for every course's due items,
@@ -14,9 +15,8 @@
  * for ten minutes in this tab's sessionStorage on Blackboard's own origin,
  * which already holds the same data, and never leave the browser.
  *
- * Independent of dark mode: its own preference (courseCardsEnabled, absent
- * means on), its own stylesheet for light mode, section 37 of dark-mode.css
- * for dark.
+ * Always on, and independent of dark mode: course-cards.css styles it for
+ * light, section 37 of dark-mode.css for dark.
  *
  * Wrapped in a function because content scripts share one lexical scope: a
  * top-level const here that collides with one in content.js would throw at
@@ -31,7 +31,6 @@
   if (window.__darkboardCourseCards) return;
   window.__darkboardCourseCards = true;
 
-  const PREF_KEY = 'courseCardsEnabled';
   const MARK = 'data-darkboard-card';
   const CARD_SELECTOR = 'article[id^="course-list-course-"]';
   // Ultra also renders cards whose id is a bare "course-list-course-"; they
@@ -40,34 +39,57 @@
   const BETTERCAMPUS = '[class*="bettercampus-card-grade"], [class*="bettercampus-grade-anchor"]';
   const OVERALL_NAME = /overall|total|final/i;
 
-  const CACHE_KEY = 'darkboard.cards.v1';
+  const CACHE_KEY = 'darkboard.cards.v2';
+  const OPEN_KEY = 'darkboard.cards.dueOpen';
   const CACHE_TTL_MS = 10 * 60 * 1000;
   // A network error or timeout is retried sooner than a real answer expires,
   // but not on the next mutation: Ultra mutates the DOM constantly, and an
   // entry that never became fresh would refetch on every one of them.
   const RETRY_MS = 60 * 1000;
-  const DUE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+  const DUE_WINDOW_DAYS = 14;
+  const DUE_WINDOW_MS = DUE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   const DUE_LIMIT = 3;
   const CONCURRENCY = 3;
   const FETCH_TIMEOUT_MS = 8000;
 
   const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
-  let enabled = false;
   let observer = null;
-  let controller = null;
   let refreshing = null;
   let refreshQueued = false;
   let rafPending = false;
   let cache = readCache();
   const reported = new Set();
 
-  // ─── Cache ──────────────────────────────────────────────────────────────
-  // Entries carry their own timestamps, so a course that scrolls into a new
-  // term later is fetched without throwing away the ones already known.
+  // ─── Storage ────────────────────────────────────────────────────────────
+  // Both keys live on Blackboard's origin. Storage that cannot be read (a
+  // private window, blocked site data) costs the cache and the remembered
+  // open sections, nothing else.
 
-  function emptyCache() {
+  function readJson(storage, key) {
+    try {
+      return JSON.parse(storage.getItem(key));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeJson(storage, key, value) {
+    try {
+      storage.setItem(key, JSON.stringify(value));
+    } catch (e) {}
+  }
+
+  // Entries carry their own expiry, so a course that scrolls into a new term
+  // later is fetched without throwing away the ones already known.
+  function readCache() {
+    const parsed = readJson(sessionStorage, CACHE_KEY);
+    if (parsed && typeof parsed === 'object' && parsed.grades) return parsed;
     return { userId: null, due: null, grades: {} };
+  }
+
+  function writeCache() {
+    writeJson(sessionStorage, CACHE_KEY, cache);
   }
 
   function fresh(entry) {
@@ -78,18 +100,17 @@
     return Date.now() + (result.transient ? RETRY_MS : CACHE_TTL_MS);
   }
 
-  function readCache() {
-    try {
-      const parsed = JSON.parse(sessionStorage.getItem(CACHE_KEY));
-      if (parsed && typeof parsed === 'object' && parsed.grades) return parsed;
-    } catch (e) {}
-    return emptyCache();
+  function openCourses() {
+    const list = readJson(localStorage, OPEN_KEY);
+    return new Set(Array.isArray(list) ? list : []);
   }
 
-  function writeCache() {
-    try {
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    } catch (e) {}
+  function rememberOpen(courseId, open) {
+    const set = openCourses();
+    if (open === set.has(courseId)) return;
+    if (open) set.add(courseId);
+    else set.delete(courseId);
+    writeJson(localStorage, OPEN_KEY, [...set]);
   }
 
   // ─── Network ────────────────────────────────────────────────────────────
@@ -106,13 +127,12 @@
 
   // `transient` separates "try again soon" (network, timeout, 5xx, a body
   // that is not JSON) from an answer that holds for the TTL (4xx).
-  async function fetchJson(path, signal) {
-    const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  async function fetchJson(path) {
     try {
       const response = await fetch(location.origin + path, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.any([signal, timeout]),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!response.ok) {
         report(path, response.status);
@@ -120,14 +140,14 @@
       }
       return { body: await response.json(), transient: false };
     } catch (err) {
-      if (!signal.aborted) report(path, timeout.aborted ? 'timeout' : err.name);
+      report(path, err.name === 'TimeoutError' ? 'timeout' : err.name);
       return { body: null, transient: true };
     }
   }
 
-  async function loadUserId(signal) {
+  async function loadUserId() {
     if (cache.userId) return cache.userId;
-    const { body } = await fetchJson('/learn/api/public/v1/users/me', signal);
+    const { body } = await fetchJson('/learn/api/public/v1/users/me');
     if (body && typeof body.id === 'string') {
       cache.userId = body.id;
       writeCache();
@@ -136,8 +156,9 @@
   }
 
   // The endpoint rejects a `since` in the past with a 400; it works out which
-  // items are overdue itself.
-  async function loadDue(signal) {
+  // items are overdue itself. Counts are taken before the list is capped, so
+  // the header reports everything in the window and not just what is shown.
+  async function loadDue() {
     if (fresh(cache.due)) return;
 
     const since = new Date();
@@ -145,12 +166,16 @@
     const result = await fetchJson(
       '/learn/api/v1/calendars/todo/studentItems' +
         `?since=${encodeURIComponent(since.toISOString())}` +
-        `&until=${encodeURIComponent(until.toISOString())}`,
-      signal
+        `&until=${encodeURIComponent(until.toISOString())}`
     );
-    if (signal.aborted) return;
 
-    const body = result.body || {};
+    // A failed fetch must not read as "nothing due" on every card.
+    if (!result.body) {
+      cache.due = { expires: expiry(result), failed: true, byCourse: {} };
+      writeCache();
+      return;
+    }
+
     const byCourse = {};
     const add = (items, state) => {
       for (const item of Array.isArray(items) ? items : []) {
@@ -162,17 +187,22 @@
         (byCourse[courseId] ||= []).push({ title, due, state });
       }
     };
-    add(body.overdueItems, 'overdue');
-    add(body.dueTodayItems, 'today');
-    add(body.futureDueItems, 'upcoming');
+    add(result.body.overdueItems, 'overdue');
+    add(result.body.dueTodayItems, 'today');
+    add(result.body.futureDueItems, 'upcoming');
 
     const rank = { overdue: 0, today: 1, upcoming: 2 };
-    for (const list of Object.values(byCourse)) {
+    const summarised = {};
+    for (const [courseId, list] of Object.entries(byCourse)) {
       list.sort((a, b) => rank[a.state] - rank[b.state] || a.due - b.due);
-      list.length = Math.min(list.length, DUE_LIMIT);
+      summarised[courseId] = {
+        total: list.length,
+        overdue: list.filter((item) => item.state === 'overdue').length,
+        items: list.slice(0, DUE_LIMIT),
+      };
     }
 
-    cache.due = { expires: expiry(result), byCourse };
+    cache.due = { expires: expiry(result), fetchedAt: Date.now(), byCourse: summarised };
     writeCache();
   }
 
@@ -213,21 +243,17 @@
     return { text: letter || percent, percent, status };
   }
 
-  async function loadGrade(courseId, userId, signal) {
+  async function loadGrade(courseId, userId) {
     let result = await fetchJson(
-      `/learn/api/v1/courses/${courseId}/gradebook/columns?includeInvisible=false`,
-      signal
+      `/learn/api/v1/courses/${courseId}/gradebook/columns?includeInvisible=false`
     );
-    if (signal.aborted) return;
 
     const column = pickOverallColumn(result.body && result.body.results);
     let grade = null;
     if (column) {
       result = await fetchJson(
-        `/learn/api/v1/courses/${courseId}/gradebook/grades?limit=100&userId=${encodeURIComponent(userId)}`,
-        signal
+        `/learn/api/v1/courses/${courseId}/gradebook/grades?limit=100&userId=${encodeURIComponent(userId)}`
       );
-      if (signal.aborted) return;
       const rows = result.body && Array.isArray(result.body.results) ? result.body.results : [];
       grade = gradeFrom(column, rows.find((r) => r && r.columnId === column.id));
     }
@@ -248,12 +274,10 @@
     writeCache();
   }
 
-  // Switching the cards off aborts what is in flight; the check here is what
-  // stops the courses still queued behind it from being asked for at all.
-  async function runLimited(tasks, signal) {
+  async function runLimited(tasks) {
     const queue = tasks.slice();
     const worker = async () => {
-      while (queue.length && !signal.aborted) await queue.shift()();
+      while (queue.length) await queue.shift()();
     };
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
   }
@@ -265,8 +289,10 @@
     return match ? match[1] : null;
   }
 
-  function eligibleCards() {
-    return [...document.querySelectorAll(CARD_SELECTOR)].filter((a) => courseIdOf(a));
+  function ownCards() {
+    return [...document.querySelectorAll(CARD_SELECTOR)].filter(
+      (a) => courseIdOf(a) && !a.querySelector(BETTERCAMPUS)
+    );
   }
 
   // The card opens its course on click and on Enter. Our links and the
@@ -300,79 +326,114 @@
     return dateFormat.format(item.due);
   }
 
-  function buildDue(courseId, items) {
+  function span(className, text) {
+    const el = document.createElement('span');
+    el.className = className;
+    el.textContent = text;
+    return el;
+  }
+
+  function buildSummary(entry) {
+    const summary = document.createElement('summary');
+    summary.append(span('darkboard-card-due__label', 'Due'), span('darkboard-card-due__count', ` · ${entry.total}`));
+    if (entry.overdue) summary.append(span('darkboard-card-due__overdue', ` · ${entry.overdue} overdue`));
+
+    // The middots are for the eye; a screen reader gets the sentence.
+    const items = entry.total === 1 ? '1 item' : `${entry.total} items`;
+    summary.setAttribute('aria-label', entry.overdue
+      ? `Due soon: ${items}, ${entry.overdue} overdue`
+      : `Due soon: ${items}`);
+    isolate(summary);
+    return summary;
+  }
+
+  function buildDue(courseId, entry, stamp) {
     const section = document.createElement('section');
     section.className = 'darkboard-card-due';
     section.setAttribute(MARK, 'due');
-    section.setAttribute('aria-label', 'Due soon');
+    section.dataset.stamp = stamp;
 
     const details = document.createElement('details');
-    details.open = true;
-    const summary = document.createElement('summary');
-    summary.textContent = 'Due';
-    isolate(summary);
-    details.appendChild(summary);
+    details.open = openCourses().has(courseId);
+    details.addEventListener('toggle', () => rememberOpen(courseId, details.open));
+    details.appendChild(buildSummary(entry));
 
-    const list = document.createElement('ul');
-    for (const item of items) {
-      const li = document.createElement('li');
-      li.className = 'darkboard-card-due__item';
-      li.dataset.state = item.state;
+    if (!entry.items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'darkboard-card-due__empty';
+      empty.textContent = `Nothing due in the next ${DUE_WINDOW_DAYS / 7} weeks`;
+      details.appendChild(empty);
+    } else {
+      const list = document.createElement('ul');
+      for (const item of entry.items) {
+        const li = document.createElement('li');
+        li.className = 'darkboard-card-due__item';
+        li.dataset.state = item.state;
 
-      const link = document.createElement('a');
-      link.href = `/ultra/courses/${courseId}/outline`;
-      link.textContent = item.title;
-      link.title = item.title;
-      isolate(link);
+        const link = document.createElement('a');
+        link.href = `/ultra/courses/${courseId}/outline`;
+        link.textContent = item.title;
+        link.title = item.title;
+        isolate(link);
 
-      const time = document.createElement('time');
-      time.dateTime = new Date(item.due).toISOString();
-      time.textContent = whenLabel(item);
+        const time = document.createElement('time');
+        time.dateTime = new Date(item.due).toISOString();
+        time.textContent = whenLabel(item);
 
-      li.append(link, time);
-      list.appendChild(li);
+        li.append(link, time);
+        list.appendChild(li);
+      }
+      details.appendChild(list);
     }
-    details.appendChild(list);
+
     section.appendChild(details);
     return section;
   }
+
+  const NO_DUE = { total: 0, overdue: 0, items: [] };
 
   function removeFrom(root) {
     for (const el of root.querySelectorAll(`[${MARK}]`)) el.remove();
   }
 
   // Synchronous and idempotent: draws whatever the cache already knows onto
-  // cards that lack it, and reports whether any card is still missing data.
+  // cards that lack it, replaces a Due section drawn from older data, and
+  // reports whether any card is still missing data.
   function render() {
     let missing = false;
 
-    for (const article of eligibleCards()) {
-      const courseId = courseIdOf(article);
+    for (const article of document.querySelectorAll(CARD_SELECTOR)) {
+      if (article.querySelector(BETTERCAMPUS)) removeFrom(article);
+    }
 
-      if (article.querySelector(BETTERCAMPUS)) {
-        removeFrom(article);
-        continue;
-      }
+    for (const article of ownCards()) {
+      const courseId = courseIdOf(article);
+      const details = article.querySelector('.element-details') || article;
 
       const gradeEntry = cache.grades[courseId];
       if (!fresh(gradeEntry)) missing = true;
       if (!fresh(cache.due)) missing = true;
 
-      const banner = article.querySelector('.course-banner');
       if (gradeEntry && gradeEntry.grade && !article.querySelector(`[${MARK}="grade"]`)) {
         const badge = buildBadge(courseId, gradeEntry.grade);
+        const banner = article.querySelector('.course-banner');
         // List view has no banner; the badge then leads the details instead.
         if (banner) {
           banner.prepend(badge);
         } else {
           badge.classList.add('darkboard-card-grade--inline');
-          (article.querySelector('.element-details') || article).prepend(badge);
+          details.prepend(badge);
         }
       }
 
-      const items = cache.due && cache.due.byCourse[courseId];
-      if (items && items.length && !article.querySelector(`[${MARK}="due"]`)) {
-        (article.querySelector('.element-details') || article).appendChild(buildDue(courseId, items));
+      if (cache.due && !cache.due.failed) {
+        const stamp = String(cache.due.fetchedAt);
+        const existing = article.querySelector(`[${MARK}="due"]`);
+        if (!existing || existing.dataset.stamp !== stamp) {
+          const section = buildDue(courseId, cache.due.byCourse[courseId] || NO_DUE, stamp);
+          if (existing) existing.replaceWith(section);
+          else details.appendChild(section);
+        }
       }
     }
 
@@ -382,9 +443,9 @@
   // Our own insertions are exactly what the observer watches, so it is
   // disconnected around every render.
   function renderQuietly() {
-    if (observer) observer.disconnect();
+    observer.disconnect();
     const missing = render();
-    if (observer && enabled) observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true });
     return missing;
   }
 
@@ -394,25 +455,20 @@
       return refreshing;
     }
 
-    const signal = controller.signal;
     refreshing = (async () => {
-      // A card BetterCampus owns is never drawn on, so its grade is not asked for.
-      const courseIds = [...new Set(
-        eligibleCards().filter((a) => !a.querySelector(BETTERCAMPUS)).map(courseIdOf)
-      )];
-      const userId = await loadUserId(signal);
-      if (signal.aborted) return;
+      const courseIds = [...new Set(ownCards().map(courseIdOf))];
+      const userId = await loadUserId();
 
-      const tasks = [() => loadDue(signal)];
+      const tasks = [() => loadDue()];
       if (userId) {
         for (const id of courseIds) {
-          if (!fresh(cache.grades[id])) tasks.push(() => loadGrade(id, userId, signal));
+          if (!fresh(cache.grades[id])) tasks.push(() => loadGrade(id, userId));
         }
       } else {
         deferGrades(courseIds);
       }
-      await runLimited(tasks, signal);
-      if (!signal.aborted && enabled) renderQuietly();
+      await runLimited(tasks);
+      renderQuietly();
     })();
 
     try {
@@ -421,7 +477,7 @@
       refreshing = null;
     }
 
-    if (refreshQueued && enabled) {
+    if (refreshQueued) {
       refreshQueued = false;
       if (renderQuietly()) refresh();
     }
@@ -432,49 +488,19 @@
     rafPending = true;
     requestAnimationFrame(() => {
       rafPending = false;
-      if (!enabled) return;
       if (renderQuietly()) refresh();
     });
   }
 
-  // ─── Lifecycle ──────────────────────────────────────────────────────────
-
   function start() {
-    if (enabled || !document.body) return;
-    enabled = true;
-    controller = new AbortController();
+    if (observer || !document.body) return;
     observer = new MutationObserver(onMutations);
     if (renderQuietly()) refresh();
   }
 
-  function stop() {
-    if (!enabled) return;
-    enabled = false;
-    if (observer) observer.disconnect();
-    observer = null;
-    if (controller) controller.abort();
-    controller = null;
-    refreshQueued = false;
-    removeFrom(document);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
   }
-
-  function apply(value) {
-    if (value !== false) {
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', start, { once: true });
-      } else {
-        start();
-      }
-    } else {
-      stop();
-    }
-  }
-
-  // Storage changes reach content scripts directly, so unlike the dark-mode
-  // toggle this needs no relay through the background worker.
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && PREF_KEY in changes) apply(changes[PREF_KEY].newValue);
-  });
-
-  chrome.storage.local.get(PREF_KEY, (result) => apply(result && result[PREF_KEY]));
 })();

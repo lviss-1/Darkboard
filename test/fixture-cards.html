@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<!-- Course cards (course-cards.js). The card markup and the API response
-     shapes were read from a live Iona course list (card view) and from the
-     endpoints Ultra itself calls; the values are invented.
+<!-- Course cards (course-cards.js). The card markup, its layout, and the API
+     response shapes were read from a live Iona course list (card view, with
+     BetterCampus off: it rewrites the layout) and from the endpoints Ultra
+     itself calls; the values are invented.
 
-     ?dark  turns the gate on and loads dark-mode.css; without it the page is
-            Blackboard's light theme and only course-cards.css applies.
-     ?warm  keeps sessionStorage, so the second load runs from the cache. -->
+     ?dark      turns the gate on and loads dark-mode.css; without it the page
+                is Blackboard's light theme and only course-cards.css applies.
+     ?warm      keeps sessionStorage, so the second load runs from the cache.
+     ?keepOpen  keeps the remembered open Due sections from the last load.
+     ?cardsCss= swaps course-cards.css, for before/after comparisons. -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -19,7 +22,8 @@
   <script>
     const params = new URLSearchParams(location.search);
     window.__dark = params.has('dark');
-    if (!params.has('warm')) sessionStorage.removeItem('darkboard.cards.v1');
+    if (!params.has('warm')) sessionStorage.removeItem('darkboard.cards.v2');
+    if (!params.has('keepOpen')) localStorage.removeItem('darkboard.cards.dueOpen');
     // content.js paints the gate from this mirror before storage answers.
     localStorage.setItem('darkboard.enabled', window.__dark ? 'on' : 'off');
 
@@ -32,7 +36,7 @@
       document.head.appendChild(link);
     });
     window.__cssReady = Promise.all([
-      sheet('../src/course-cards.css'),
+      sheet(params.get('cardsCss') || '../src/course-cards.css'),
       window.__dark ? sheet('../src/dark-mode.css') : Promise.resolve(),
     ]);
 
@@ -52,30 +56,16 @@
     })();
 
     // ─── chrome.* ──────────────────────────────────────────────────────────
-    (function () {
-      const prefs = { darkModeEnabled: window.__dark };
-      const changeListeners = [];
-      window.chrome = {
-        storage: {
-          local: {
-            get(key, cb) {
-              const keys = Array.isArray(key) ? key : [key];
-              const out = {};
-              for (const k of keys) if (k in prefs) out[k] = prefs[k];
-              setTimeout(() => cb(out), 0);
-            },
-            set() {},
-          },
-          onChanged: { addListener(fn) { changeListeners.push(fn); } },
+    // Only content.js reads chrome.*; course-cards.js uses none of it.
+    window.chrome = {
+      storage: {
+        local: {
+          get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: window.__dark }), 0); },
+          set() {},
         },
-        runtime: { onMessage: { addListener() {} } },
-      };
-      window.__setPref = (key, value) => {
-        const oldValue = prefs[key];
-        prefs[key] = value;
-        for (const fn of changeListeners) fn({ [key]: { oldValue, newValue: value } }, 'local');
-      };
-    })();
+      },
+      runtime: { onMessage: { addListener() {} } },
+    };
 
     // ─── Blackboard's API ──────────────────────────────────────────────────
     // Shapes as the live endpoints return them, trimmed to the fields read.
@@ -145,18 +135,29 @@
   </script>
 
   <style>
-    /* Stands in for Blackboard's card sheet: the measured geometry of the live
-       card (380 wide, 146px banner with the image as a background, details
-       laid out with floats). */
+    /* Stands in for Blackboard's card sheet, as measured on the live page:
+       a three-column list grid that stretches every card in a row to the
+       tallest; each card a 260px `row wrap` flexbox (128px banner, then the
+       details filling the rest of the card); the details a two-column grid
+       (266px + 88px) with five placed rows, the title row a flexible track
+       and the status row 30px. Stretching a live card to 404px grew only the
+       title row (21 → 165px): that is the gap mid-card in the report. The
+       declared rules are cross-origin and unreadable, so this reproduces the
+       geometry, not Blackboard's exact CSS. */
     body { font-family: system-ui, sans-serif; background: #f8f8f8; margin: 16px; }
-    .course-org-list { display: grid; grid-template-columns: repeat(3, 380px); gap: 16px; }
-    article.element-card { position: relative; display: flex; flex-direction: column; background: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
-    .course-banner { position: relative; height: 146px; background: linear-gradient(135deg, #6f2c3e, #2c4a6f); }
-    .element-details { padding: 8px 12px 0; }
-    .element-details::after { content: ""; display: block; clear: both; }
-    .status-bar { float: left; width: 70%; padding: 8px 0; }
-    .more-info { float: right; width: 30%; padding: 8px 0; text-align: right; }
-    hr.separator { border: 0; border-top: 1px solid #ddd; margin: 4px 0; }
+    .course-org-list { display: grid; grid-template-columns: repeat(3, 380px); column-gap: 16px; }
+    .default-group { display: block; }
+    article.element-card { position: relative; box-sizing: border-box; height: calc(100% - 16px); min-height: 82px; margin: 8px 0; display: flex; flex-flow: row wrap; align-content: flex-start; background: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .course-banner { position: relative; width: 100%; height: 128px; background: linear-gradient(135deg, #6f2c3e, #2c4a6f); }
+    .element-details { flex: 1 1 100%; box-sizing: border-box; height: calc(100% - 129px); display: grid; grid-template-columns: 1fr 88px; grid-template-rows: auto 1fr 30px auto auto; padding: 8px 12px 0; }
+    .element-details > .small-12 { grid-area: 1 / 2; }
+    .element-details > .multi-column-course-id { grid-area: 1 / 1; }
+    .element-details > .course-title { grid-area: 2 / 1 / auto / -1; }
+    .element-details > .course-status { grid-area: 3 / 1 / auto / -1; }
+    .element-details > hr.separator { grid-area: 4 / 1 / auto / -1; border: 0; border-top: 1px solid #ddd; margin: 1px 0; }
+    .element-details > .status-bar { grid-area: 5 / 1; display: flex; padding: 8px 0; }
+    .element-details > .more-info { grid-area: 5 / 2; display: flex; justify-content: flex-end; padding: 8px 0; }
+    .course-title h4 { margin: 0; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -165,7 +166,7 @@
   </div>
 
   <template id="card">
-    <bb-base-course-card>
+    <div class="default-group"><bb-base-course-card>
       <article class="element-card course-element-card highlight pointer bar js-course-details child-is-invokable">
         <div class="course-banner"><div class="image-div" role="img"></div><div class="guidance-overflow-wrapper"></div></div>
         <div class="element-details summary">
@@ -178,7 +179,7 @@
           <div class="more-info"><button type="button">More</button></div>
         </div>
       </article>
-    </bb-base-course-card>
+    </bb-base-course-card></div>
   </template>
 
   <script>
@@ -256,16 +257,58 @@
         const b = badge.getBoundingClientRect(), r = banner.getBoundingClientRect();
         offset = [Math.round(b.left - r.left), Math.round(b.top - r.top)];
       }
+      const details = article.querySelector('.element-details');
+      const title = article.querySelector('.course-title');
       return {
         badge: badge && badge.textContent,
         status: badge && (badge.dataset.gradeStatus || null),
         label: badge && badge.getAttribute('aria-label'),
         inBanner: !!badge && badge.parentElement === banner,
         offset,
+        header: due && due.querySelector('summary').textContent,
+        headerLabel: due && due.querySelector('summary').getAttribute('aria-label'),
+        open: due && due.querySelector('details').open,
+        empty: due && (due.querySelector('.darkboard-card-due__empty') || {}).textContent || null,
         due: due && [...due.querySelectorAll('li')].map((li) => [li.dataset.state, li.querySelector('time').textContent]),
+        // The section must span the details grid, title edge to star edge.
+        spansFull: !!due && Math.abs(due.getBoundingClientRect().width - title.getBoundingClientRect().width) <= 1,
         marks: ours(article).length,
+        _details: details,
       };
     }
+
+    // Distance from the bottom of the title text to the top of the status
+    // line: the dead space in the report, 0 on an unstretched live card. The
+    // <h4> is measured, not the link: the link is a grid item and stretches
+    // with its row, so its own bottom always meets the status line.
+    function gapOf(id) {
+      const article = card(id);
+      return Math.round(article.querySelector('.course-status').getBoundingClientRect().top
+        - article.querySelector('.course-title h4').getBoundingClientRect().bottom);
+    }
+
+    window.__layout = function () {
+      const rowOf = (id) => Math.round(card(id).getBoundingClientRect().top);
+      return Object.fromEntries(CARDS.map(([id]) => [id || 'blank', {
+        row: rowOf(id),
+        height: Math.round(card(id).getBoundingClientRect().height),
+        gap: gapOf(id),
+      }]));
+    };
+
+    // Opens one card's Due section the way a student does, then reports the
+    // layout of its row.
+    window.__openDue = async function (id = '_101_1') {
+      await __settle();
+      const summary = card(id).querySelector('[data-darkboard-card="due"] summary');
+      summary.click();
+      await __settle();
+      return {
+        open: card(id).querySelector('[data-darkboard-card="due"] details').open,
+        remembered: JSON.parse(localStorage.getItem('darkboard.cards.dueOpen') || '[]'),
+        layout: __layout(),
+      };
+    };
 
     function measure(id) {
       const article = card(id);
@@ -274,19 +317,29 @@
       const overdue = article.querySelector('[data-darkboard-card="due"] li[data-state="overdue"] time');
       const upcoming = article.querySelector('[data-darkboard-card="due"] li[data-state="upcoming"] time');
       const cardBg = __computed(article, 'backgroundColor');
+      const ratio = (el) => el && __contrast(__computed(el, 'color'), cardBg);
+      // The list items only lay out while open, but colour does not depend on
+      // it; the empty-state line comes from a card with nothing due.
       return {
         cardBg,
         badgeText: badge && __contrast(__computed(badge, 'color'), __computed(badge, 'backgroundColor')),
-        itemText: li && __contrast(__computed(li.querySelector('a'), 'color'), cardBg),
-        dateText: upcoming && __contrast(__computed(upcoming, 'color'), cardBg),
-        overdueText: overdue && __contrast(__computed(overdue, 'color'), cardBg),
-        summary: __contrast(__computed(article.querySelector('summary'), 'color'), cardBg),
+        itemText: ratio(li && li.querySelector('a')),
+        dateText: ratio(upcoming),
+        overdueText: ratio(overdue),
+        summary: ratio(article.querySelector('summary .darkboard-card-due__label')),
+        headerCount: ratio(article.querySelector('.darkboard-card-due__count')),
+        headerOverdue: ratio(article.querySelector('.darkboard-card-due__overdue')),
+        emptyText: ratio(card('_103_1').querySelector('.darkboard-card-due__empty')),
       };
     }
 
     window.__probe = async function () {
       await __settle();
-      const cards = Object.fromEntries(CARDS.map(([id]) => [id || 'blank', cardState(id)]));
+      const cards = Object.fromEntries(CARDS.map(([id]) => {
+        const state = cardState(id);
+        delete state._details;
+        return [id || 'blank', state];
+      }));
       const nestedPill = !!document.querySelector('.darkboard-pill .darkboard-pill, [data-darkboard-card] .darkboard-pill');
       return {
         dark: document.documentElement.hasAttribute('data-bb-dark'),
@@ -294,6 +347,7 @@
         requestPaths: window.__requests.map((p) => p.split('?')[0]),
         cards,
         nestedPill,
+        layout: __layout(),
         contrast: measure('_101_1'),
       };
     };
@@ -303,7 +357,7 @@
     window.__rerender = async function (id = '_101_1') {
       await __settle();
       const before = window.__requests.length;
-      const old = card(id).closest('bb-base-course-card');
+      const old = card(id).closest('.default-group');
       old.replaceWith(buildCard(id, 'Re-rendered'));
       await __settle();
       return { newRequests: window.__requests.length - before, state: cardState(id) };
@@ -326,15 +380,6 @@
       card(id).querySelector('[data-darkboard-card="due"] summary').click();
       card(id).querySelector('.course-title').click();
       return { cardClicksFromOurs: window.__cardClicks - before - 1, cardStillClickable: window.__cardClicks - before >= 1 };
-    };
-
-    window.__toggle = async function (value) {
-      await __settle();
-      const before = window.__requests.length;
-      window.__setPref('courseCardsEnabled', value);
-      await __settle();
-      return { marks: ours(document).length, newRequests: window.__requests.length - before };
-    };
-  </script>
+    };  </script>
 </body>
 </html>

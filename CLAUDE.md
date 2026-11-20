@@ -21,7 +21,7 @@ lives in `test/README.md` and in the rationale comments above each block of
 | `src/content.js` | Gate, preference mirror, observers, inline-style passes, grade colorizer (~1,040 lines) |
 | `src/course-cards.js` | Collapsible Due section on the course-list cards, plus the overall-grade badge when the student opts in (see **Course cards**). Top frame only. Its one `chrome.*` use is the `showCardGrades` preference |
 | `src/course-cards.css` | The cards' light-mode styles and the card-grid fix, ungated; dark colours live in section 37 |
-| `src/dark-mode.css` | The theme: palette tokens, then sections 1–37 (~2,370 lines, ~350 `!important`) |
+| `src/dark-mode.css` | The theme: palette tokens, then sections 1–38 (~2,470 lines, ~360 `!important`) |
 | `src/accent.js` | Pure OKLCH maths deriving the accent ramp from one institution colour. Also `require`d by Node |
 | `src/background.js` | Service worker: keeps the `darkboard-sites` registration in step with granted schools, relays toggles to every themed tab, paints the toolbar badge, seeds the default on install |
 | `src/popup.js`, `popup.html` | DARK MODE and COURSE GRADES toggles, per-tab site panel (enable / beta + remove / scope note), static rating link. Fonts in `src/fonts/` |
@@ -97,13 +97,23 @@ their own**. `SKIP_HOSTS` (script, style, textarea…) are never touched.
 **Accent.** `DarkboardAccent.baseFor(location.hostname)` looks up
 `INSTITUTIONS` (only `online.iona.edu` → `#6f2c3e`); any other host, including
 `localhost` fixtures that load `accent.js`, gets `DEFAULT_BASE` (`#4a5a8a`, a
-neutral indigo, so other schools don't wear Iona maroon) → `derive()` returns eight
+neutral indigo, so other schools don't wear Iona maroon) → `derive()` returns eleven
 custom properties (`--accent-primary/hover/deep/edge`, `--text-on-accent`,
-`--border-focus`, `--accent-glow`, `--shadow-maroon`) or `null` if the colour
-cannot produce an accessible ramp → written inline on `<html>`. A `null` ramp
-or a missing `accent.js` leaves the CSS `:root` values (Iona maroon).
-`--bg-hover` is a surface token, not part of the ramp, so it stays maroon-cast
-on every host. `DarkboardAccent`
+`--border-focus`, `--bg-hover`, `--text-link`, `--text-link-hover`,
+`--accent-glow`, `--shadow-maroon`) or `null` if the colour cannot produce an
+accessible ramp → written inline on `<html>`. A `null` ramp or a missing
+`accent.js` leaves the CSS `:root` values (Iona maroon).
+- `--bg-hover` and the two link colours keep Iona's OKLCH lightness and
+  chroma at the school's hue. Before 1.4.1 they were fixed Iona tints, so
+  UMBC got pink links and maroon hovers beside its indigo.
+- The link solves for ≥4.5:1 on every surface, including the school's own
+  hover, and falls back to the ring, so no school's ramp is ever rejected for
+  its link.
+- The ring is also measured against the school's hover in place of
+  `#3f2b3e`.
+- Iona's derived values sit within ΔE 0.03 of the shipped CSS ones.
+
+`DarkboardAccent`
 is a top-level `const`: shared across content scripts' lexical scope, **not**
 a `window` property.
 
@@ -242,7 +252,16 @@ catchers) · 24 right sidebar · 25 announcements / messages toolbar · 26 globa
 28 semantic state colours · 29 disabled · 30 nav is not primary buttons ·
 31 Blackboard's light artwork · 32 focus rings · 33 selection · 34 motion &
 forced colours · 35 peek-panel header · 36 calendar week strip · 37 course
-cards (badge and Due list).
+cards (badge and Due list) · 38 Blackboard's light-theme borders (named
+containers → `--border-strong`, the list/grid switch → `--border-interactive`).
+
+**Outlines.** `--border-interactive` is `#6e6e82` (was `#85859a`, which read
+as white boxes at another school). It is 3.97:1 on the canvas and 3.28 on
+cards, but only 2.81 on tertiary and 2.32 on raised surfaces. That is fine
+for a *labelled* button, which its label identifies (1.4.11). Text inputs use
+`--border-strong`. Icon-only buttons (`svg`, `i` or Ultra's `bb-svg-icon` as
+only child) and MUI link-buttons (`button[class*="MuiLink-button"]`, the
+course-outline titles) carry no border at all.
 
 **Surface ladder** (designed in CIE L*, each tier ≥3 L* from its neighbours;
 contrast ratio is the wrong metric between near-blacks):
@@ -289,7 +308,9 @@ exceeds (0,3,x); those ID selectors make that claim inaccurate.
   `SURFACES` list must equal the CSS ladder plus `--bg-hover`;
   `accent.test.js` checks this.
 - **Accessibility thresholds are measured, not hardcoded**: 4.5:1 text
-  (1.4.3), 3:1 control boundaries and focus rings (1.4.11). The focus ring
+  (1.4.3), 3:1 focus rings and any boundary that alone identifies a control
+  (1.4.11). A labelled button's outline is not one, which is what lets
+  `--border-interactive` drop below 3:1 on raised surfaces. The focus ring
   must be an `outline`, not a `box-shadow` (section 22 forces `box-shadow:
   none` in the stream).
 - **`content.js` throws if evaluated twice** (top-level `const`s). Anything
@@ -331,7 +352,9 @@ Any rule that sets `background-color` | Section 3 inheritance: a fill on a conta
 A transparent/overlay rule | Sections 18, 26 (`[class*="bb-"]` matches `bb-offcanvas-overlay`), 27 — later equal-specificity rules win on source order and have undone fixes before (section 10 vs 26)
 Section 26's `[class*="bb-"]` sweep | It paints `--bg-primary` on *anything* whose class contains `bb-`, inline text included: `bb-ui-username` (inside every `bb-username`) was a near-black box on each card. Exempt by adding to its `:not(:where(…))`; a plain `:not()` raises the rule's specificity over everything it now ties or loses to
 A `:hover` or `:focus-within` rule | `:focus-within` propagates to every ancestor, so a flood *persists*. FullCalendar rows must not hover
-Section 8 buttons | Calendar day buttons (section 36), `svg:only-child` icon detection, anchors styled as buttons, the primary CTA rim
+Section 8 buttons | Calendar day buttons (section 36), icon detection (`svg` / `i` / `bb-svg-icon` as only child), MUI link-buttons (no box), anchors styled as buttons, the primary CTA rim. Known and pre-existing: a primary button whose class contains `bb-` (the fixture's `bb-button-primary`) loses its fill to section 26's sweep at (0,5,1)
+A border colour Blackboard draws | Section 3 never resets `border-color`, so Blackboard's light-theme greys survive as near-white lines. Add the element to section 38 by measured class; **never a universal `border-color` reset**: `restoreEventDots` reads `border-left-color` from `.course-color-N`. `fixture-overrides` `__borders`
+Section 18's `[class*="filter"]` | It boxes anything whose class contains "filter"; `h1.page-title.has-filter` is excluded via `:not(:where(…))`, which keeps its (0,1,1)
 A palette token | Every measured ratio in `test/README.md`, `accent.js` `SURFACES`, the `theme()` surface set in `content.js` (it skips surfaces the theme already painted)
 Progress-bar rules (end of section 28) | Never fill `> *` of a bar: with the role or class on a wrapper, that child is the track (the "all maroon" report). Fills are empty `div`/`span` leaves. Ultra's JSS classes are camelCase `makeStyles<name>-0-2-N`, so list `progressBar` beside `progress-bar` and never key on the `-0-2-N` suffix. Colours: fill `--accent-edge` on a `--bg-primary` track. That is the one ramp/ladder pairing `accent.js` guarantees at 3:1 for every school (`derive()` only returns ramps whose edge clears the canvas at 3.5:1); the 1.4.0 `--accent-primary` on `--bg-tertiary` was 1.40:1. `fixture-progress` `legibility.fillMeets3to1`
 Grade regexes or guards | Date/counter/progress words, heading exclusion, `/grades` path rule; both `fixture-grades.html` and `grades/fixture-gradebook.html`. The 90/80/70 thresholds (`statusForPercent`) also colour the course-card badge
@@ -364,11 +387,11 @@ Anything shipped | `src/` and `popup.html` land in the next store zip; behaviour
 | `fixture-grades`, `grades/fixture-gradebook` | What counts as a grade; split values; block vs inline hosts |
 | `fixture-calendar` | Event dots, today fill, hover flood (`__calibrate`, `__checkHover`) |
 | `fixture-surfaces`, `fixture-panel` | Surface ladder tiers; ID-level panel header |
-| `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes; which elements hover; focus/selection/motion/scrollbar |
-| `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label |
+| `fixture-buttons`, `fixture-hover`, `fixture-focus` | Button shapes (incl. Ultra's `bb-svg-icon` star and MUI link-buttons); which elements hover; focus/selection/motion/scrollbar |
+| `fixture-semantics`, `fixture-overrides` | Status colours; inline catchers, striping, MUI label, section 38's light-border recolouring (`__borders`), the unboxed `has-filter` page title |
 | `fixture-progress` | Progress-bar track vs fill vs started stripes across plausible shapes, and fill-vs-track contrast ≥3:1 (`legibility`); the real learning-module bar was never observed |
 | `fixture-cards` | Course-card badge, collapsible Due section and the card-row layout, and the instructor name sitting on the card in dark mode (`instructorOffCard` empty), from live-shaped markup and API stubs (`?grades` to start with the badge on, `?dark`, `?warm`, `?keepOpen`, `?cardsCss=`, `?css=`; `__grades(bool)`, `__openDue`, `__layout`, `__rerender`, `__lateBetterCampus`, `__clickBadge`) |
-| `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo); popup contrast/copy and the opt-in COURSE GRADES row (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`, `__clickGradesToggle()`); scan cost (`__run`) |
+| `fixture-accent`, `fixture-popup`, `fixture-perf` | Accent reaches `<html>` (Iona maroon, unknown host indigo, including its own hover surface and link colour on a real `<a>`); popup contrast/copy and the opt-in COURSE GRADES row (`await __probe()`, `?site=static\|granted\|candidate\|other`, `__clickSiteAction()`, `__clickGradesToggle()`); scan cost (`__run`) |
 
 - **Before/after comparisons:** `git show HEAD:src/content.js > test/.tmp-old-content.js`
   then `?impl=.tmp-old-content.js` (fouc, perf, gradebook); or
@@ -428,7 +451,9 @@ Known, deliberate limitations: a bare text node beside an icon counts as
 icon-only (`:only-child` ignores text); `div[tabindex="0"]` gets no hover
 (it matched page-sized scroll regions); inline-style prefix catchers cannot
 tell `rgb(20, …)` from `rgb(200, …)`; only Iona is in `INSTITUTIONS`, so
-every other school gets `DEFAULT_BASE` indigo with a maroon-cast `--bg-hover`.
+every other school gets the `DEFAULT_BASE` indigo ramp rather than its own
+colour; Blackboard's light-theme borders are recoloured only where section
+38 names them (no universal `border-color` reset, see the traps table).
 A logo-derived accent cached like the mirror is the planned next step.
 
 ## Keeping this file true

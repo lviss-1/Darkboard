@@ -112,6 +112,17 @@ const DarkboardAccent = (() => {
   // used as a source.
   const MIN_CHROMA = 0.035;
 
+  // The hover surface and the link colours were fixed Iona tints, so every
+  // other school got maroon hovers and pink links beside its own accent (a
+  // tester's screenshots from UMBC, indigo, showed both). Iona's shipped
+  // values sit at these OKLCH lightnesses and chromas; each school keeps them
+  // and takes its own hue. The link search starts at Iona's link lightness and
+  // only climbs, so Iona's own link moves as little as possible.
+  const HOVER_SURFACE = { L: 0.320, C: 0.043 };
+  const LINK = { L: 0.744, C: 0.093 };
+  const LINK_HOVER = { step: 0.10, C: 0.064 };
+  const LINK_TARGET = 4.5;
+
   /** Whichever of white / near-black reads better on this fill. */
   const labelFor = (fill) => (contrast(WHITE, fill) >= contrast(NEAR_BLACK, fill) ? WHITE : NEAR_BLACK);
 
@@ -191,15 +202,32 @@ const DarkboardAccent = (() => {
       if (!edge) return null;
     }
 
+    // This school's hover surface stands in for Iona's in the ladder, so the
+    // ring and the link below are measured against the surface they will
+    // actually sit on.
+    const hoverSurface = fromLCH({ L: HOVER_SURFACE.L, C: Math.min(C, HOVER_SURFACE.C), H });
+    const surfaces = SURFACES.slice(0, -1).concat(hoverSurface);
+    const worst = (hex) => Math.min.apply(null, surfaces.map((s) => contrast(hex, s)));
+
     // The ring is measured against the surfaces and not against the fill,
     // because outline-offset draws it outside the control. Requiring it to
     // clear the fill as well made light accents unsolvable for no benefit.
     let ring = null;
     for (let L = 0.70; L <= 0.98; L += 0.01) {
       const hex = fromLCH({ L, C: Math.min(C, 0.09), H });
-      if (Math.min.apply(null, SURFACES.map((s) => contrast(hex, s))) >= RING_TARGET) { ring = hex; break; }
+      if (worst(hex) >= RING_TARGET) { ring = hex; break; }
     }
     if (!ring) return null;
+
+    // Link text has to read on every surface it can land on. The ring already
+    // passed exactly that test, so it is the fallback: a school never loses
+    // its whole ramp over its link colour.
+    let link = ring;
+    for (let L = LINK.L; L <= 0.98; L += 0.01) {
+      const hex = fromLCH({ L, C: Math.min(C, LINK.C), H });
+      if (worst(hex) >= LINK_TARGET) { link = hex; break; }
+    }
+    const linkHover = fromLCH({ L: Math.min(toLCH(link).L + LINK_HOVER.step, 0.97), C: Math.min(C, LINK_HOVER.C), H });
 
     const [r, g, b] = parseHex(accent).map((v) => Math.round(v * 255));
     return {
@@ -209,6 +237,9 @@ const DarkboardAccent = (() => {
       '--accent-edge': edge,
       '--text-on-accent': onAccent,
       '--border-focus': ring,
+      '--bg-hover': hoverSurface,
+      '--text-link': link,
+      '--text-link-hover': linkHover,
       '--accent-glow': `rgba(${r}, ${g}, ${b}, 0.25)`,
       '--shadow-maroon': `0 2px 16px rgba(${r}, ${g}, ${b}, 0.3)`,
     };

@@ -330,17 +330,35 @@ counts as icon-only, because `:only-child` ignores text nodes.
 The outline color is asserted by measured ratio, not by value. WCAG 1.4.11 asks
 for 3:1 against the adjacent surface for a component boundary, and
 `--border-strong` managed only 1.47:1, which is why `--border-interactive`
-exists.
+exists. In 1.4.1 it went from `#85859a` to `#6e6e82`, because a tester's
+screenshots from UMBC showed the old grey reading as white boxes everywhere.
+It is now **3.97:1 against the page**. Read the colours with transitions off
+(`*{transition:none!important}`): the theme animates `border-color` over
+0.15s, so a read straight after load catches it mid-flight.
+
+Two live Ultra shapes were added from the UMBC report, measured on Iona:
+- `#b-favorite`, the course card's star: `button.favorite` whose only child is
+  Ultra's `<bb-svg-icon>`, which the old `svg` / `i` check missed;
+- `#b-mui-link`, a course-outline title: `button.MuiLink-root.MuiLink-button`.
+
+Under the previous sheet both wore the `#85859a` box.
 
 | Case | Expected |
 |---|---|
 | Icon-only, `<svg>` sole child | transparent, no border |
+| Icon-only, `<bb-svg-icon>` sole child (`#b-favorite`) | transparent, no border |
+| MUI link-button (`#b-mui-link`) | transparent, no border |
 | Class containing `icon` | transparent, no border |
 | `[role="button"]` with an icon class | transparent, no border |
 | Bare text beside an icon | transparent, no border (known limitation) |
-| Text button, text-and-icon, `Button--secondary` | transparent, 1px solid border |
-| Text button border vs page | at least 3:1 |
+| Text button, text-and-icon, `Button--secondary` | transparent, 1px solid `rgb(110, 110, 130)` |
+| Text button border vs page | at least 3:1 (3.97) |
 | Primary button | maroon fill, unchanged |
+
+Known and pre-existing, not from 1.4.1: `#b-primary` (`bb-button-primary`)
+reads the canvas fill, not maroon, with the previous sheet as well. Section
+26's `[class*="bb-"]` sweep matches its class at (0,5,1), above section 8's
+primary rule at (0,2,2). Its rim is still the edge colour.
 
 ## fixture-overrides.html
 
@@ -381,6 +399,17 @@ __selectorsContaining('rgb(2"]')
 | `aria-selected="true"` item | `--bg-secondary` |
 | `__bareTypeSelectors()` | empty |
 | any `background-color: rgb(2` prefix selector | none |
+| Section 38: `#bb-item`, `#bb-folder`, `#bb-panel`, `#bb-separator`, `#bb-header` (`__borders(id)`) | every side `rgb(70, 70, 84)` (`--border-strong`); `?css=.tmp-old.css` leaves Blackboard's `229`/`205` greys |
+| `#bb-toggle`, `#bb-toggle-option` (list/grid switch) | `rgb(110, 110, 130)` (`--border-interactive`, it's a control) |
+| `#bb-course-color` | keeps its own `rgb(229, 229, 229)`: section 38 is a list, never a reset |
+| `#page-title` (`h1.page-title.has-filter`) | no fill, no border; `#real-filter` still boxed |
+
+**Section 38.** The light borders and their class names are measured from
+Iona's themed pages: the course outline, course list, stream and calendar.
+Section 3 never resets `border-color`, so Blackboard's light-theme greys
+survive as near-white lines; a UMBC tester saw them on every outline item.
+Injected into those live pages, the new rules left none of the `205`/`229`
+borders, and the calendar's event dots kept their course colours.
 
 The two inline cases resolve to `--bg-tertiary` rather than section 18's
 `--bg-secondary`: section 23 carries a prefix block at the same specificity
@@ -874,7 +903,8 @@ readable ships.
 | Real institution colours | 14 actual university brand colours |
 | Hue / saturation / lightness sweep | 1,080 colours — 874 derive, 206 correctly rejected |
 | Rejections | `#262626`, black, white, mid grey, malformed input, `null` |
-| Iona must not move | derived ramp vs the shipped one, in OKLab ΔE |
+| Iona must not move | derived ramp vs the shipped one, in OKLab ΔE, including `--bg-hover` (0.029), `--text-link` (0.010) and `--text-link-hover` (0.008) |
+| Per-school hover and links (1.4.1) | every derived ramp's link and link hover clear 4.5:1 on every surface, with the ramp's own hover in place of Iona's; its hover sits at Iona's OKLab lightness ±0.01, so the ladder keeps its tier |
 | Source resolution | the curated map, including prototype-chain leaks; `DEFAULT_BASE` derives a full ramp and sits ≥ ΔE 0.15 from Iona maroon |
 | Surfaces agree with the CSS | the ring is only trustworthy if this list is the real ladder |
 
@@ -906,7 +936,8 @@ it ships.
 | Scenario | Expected |
 |---|---|
 | Curated host | derived ramp on `<html>`, primary button wears `rgb(111, 44, 62)` |
-| Unknown host | `DEFAULT_BASE` ramp inline on `<html>` (`--accent-primary: #4a5a8a`), primary button wears `rgb(74, 90, 138)` |
+| Unknown host | `DEFAULT_BASE` ramp inline on `<html>` (`--accent-primary: #4a5a8a`), primary button wears `rgb(74, 90, 138)`; its own `--bg-hover` `#2a3249` and `--text-link` `#97aae0`, which a real `<a>` wears as `rgb(151, 170, 224)` |
+| Curated host's link | `rgb(223, 147, 163)`: Iona's derived link, ΔE 0.010 from the shipped `#dd93aa` |
 | `accent.js` absent entirely | `content.js` survives, gate still goes on, CSS defaults stand |
 
 `location` is non-configurable, so rather than mocking the hostname the fixture

@@ -82,7 +82,20 @@
               ring: read('--border-focus'),
               onAccent: read('--text-on-accent'),
               glow: read('--accent-glow'),
+              bgHover: read('--bg-hover'),
+              link: read('--text-link'),
+              linkHover: read('--text-link-hover'),
             },
+            // The link colour has to reach an actual link, not just a variable.
+            linkColor: (() => {
+              const a = doc.createElement('a');
+              a.href = '#x';
+              a.textContent = 'link';
+              doc.body.appendChild(a);
+              const v = getComputedStyle(a).color;
+              a.remove();
+              return v;
+            })(),
             // Proof the stylesheet consumes them rather than the variables
             // merely existing: a primary button has to end up wearing it.
             buttonFill: (() => {
@@ -115,6 +128,12 @@
         if (!v) failures.push('curated host: --' + k + ' is empty');
       }
       if (!iona.gated) failures.push('curated host: the gate did not go on');
+      // Iona's own derived link stays within a just-noticeable step of the
+      // shipped #dd93aa (accent.test.js bounds the drift; this proves it lands).
+      results.curatedLinkColor = iona.linkColor;
+      if (iona.linkColor !== 'rgb(223, 147, 163)') {
+        failures.push('curated host: link is ' + iona.linkColor + ', expected the derived rgb(223, 147, 163)');
+      }
       iona.cleanup();
 
       // 2. An unknown host gets the neutral DEFAULT_BASE ramp, not Iona's
@@ -127,6 +146,15 @@
       }
       if (other.buttonFill !== 'rgb(74, 90, 138)') {
         failures.push('unknown host: primary button is ' + other.buttonFill + ', expected rgb(74, 90, 138)');
+      }
+      // The hover surface and links used to stay Iona's on every school:
+      // maroon hovers and pink links beside an indigo accent.
+      results.unknownLinkColor = other.linkColor;
+      if (other.computed.bgHover !== '#2a3249') {
+        failures.push('unknown host: --bg-hover is ' + other.computed.bgHover + ', expected the indigo #2a3249');
+      }
+      if (other.computed.link !== '#97aae0' || other.linkColor !== 'rgb(151, 170, 224)') {
+        failures.push('unknown host: link is ' + other.computed.link + ' / ' + other.linkColor + ', expected #97aae0');
       }
       if (!other.gated) failures.push('unknown host: the gate did not go on');
       other.cleanup();

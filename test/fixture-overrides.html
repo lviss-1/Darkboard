@@ -59,6 +59,29 @@
   <button id="expanded-trigger" aria-expanded="true">Open menu</button>
   <div id="selected-item" aria-selected="true">Selected item</div>
 
+  <!-- Section 38: edges Blackboard draws in light-theme greys, which section 3
+       never resets. Class names and colours read from Iona's themed pages;
+       the inline style stands in for Blackboard's own sheet. -->
+  <div id="bb-item" class="makeStylesitemContainer-0-2-199 itemContainer" style="border: 1px solid rgb(229, 229, 229)">Item</div>
+  <div id="bb-folder" class="makeStylesparentItem-0-2-201" style="border: 1px solid rgb(229, 229, 229)">Folder</div>
+  <div id="bb-panel" class="js-details-and-actions outline-action-block" style="border-right: 1px solid rgb(229, 229, 229)">Details &amp; Actions</div>
+  <hr id="bb-separator" class="separator" style="border-top: 1px solid rgb(205, 205, 205)" />
+  <div id="bb-header" class="base-header color-selection-live-mode" style="border-bottom: 1px solid rgb(205, 205, 205)">Activity</div>
+  <!-- The course list's list/grid switch: a control, so the button grey. -->
+  <div class="makeStylestoggleContainer-0-2-113">
+    <div id="bb-toggle" class="makeStylesroot-0-2-114" style="border: 1px solid rgb(205, 205, 205)">
+      <label id="bb-toggle-option" class="makeStylesoption-0-2-115" style="border-right: 1px solid rgb(205, 205, 205)"><input type="radio" name="view" />List</label>
+    </div>
+  </div>
+  <!-- An unrelated light border must keep its colour: section 38 is a list,
+       not a reset, because the calendar reads border-left-color. -->
+  <div id="bb-course-color" class="course-color-3" style="border-left: 4px solid rgb(229, 229, 229)">Event</div>
+
+  <!-- The course list's page title carries a has-filter modifier; the filter
+       dropdown rule must not box it. -->
+  <h1 id="page-title" class="page-title has-filter">Courses</h1>
+  <div id="real-filter" class="course-filter-select">All courses</div>
+
   <script>
     window.__rowBackground = function (cellId) {
       return getComputedStyle(document.getElementById(cellId).closest('tr')).backgroundColor;
@@ -96,6 +119,14 @@
     window.__probe = function (id) {
       const cs = getComputedStyle(document.getElementById(id));
       return { background: cs.backgroundColor, color: cs.color };
+    };
+
+    // Every side that draws a border, with its colour.
+    window.__borders = function (id) {
+      const cs = getComputedStyle(document.getElementById(id));
+      return ['Top', 'Right', 'Bottom', 'Left']
+        .filter((side) => cs['border' + side + 'Style'] !== 'none' && cs['border' + side + 'Width'] !== '0px')
+        .map((side) => side.toLowerCase() + ' ' + cs['border' + side + 'Color']);
     };
 
     window.__token = function (name) {

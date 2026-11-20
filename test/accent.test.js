@@ -34,8 +34,20 @@ function check(label, base, ramp) {
     ['label on deep', contrast(on, ramp['--accent-deep']), 4.5],
     ['rim vs page', contrast(ramp['--accent-edge'], PAGE), 3],
   ];
-  for (const s of SURFACES) {
+  // The ramp brings its own hover surface, so the ladder it is measured
+  // against is the CSS ladder with that surface in place of Iona's.
+  const surfaces = SURFACES.slice(0, -1).concat(ramp['--bg-hover']);
+  for (const s of surfaces) {
     pairs.push(['ring vs ' + s, contrast(ramp['--border-focus'], s), 3]);
+    pairs.push(['link vs ' + s, contrast(ramp['--text-link'], s), 4.5]);
+    pairs.push(['link hover vs ' + s, contrast(ramp['--text-link-hover'], s), 4.5]);
+  }
+  // The hover surface is a tier of the ladder: it has to sit where Iona's
+  // does, clear of the card it is drawn on.
+  const hoverL = A.toLCH(ramp['--bg-hover']).L;
+  const ionaHoverL = A.toLCH(SURFACES[SURFACES.length - 1]).L;
+  if (Math.abs(hoverL - ionaHoverL) > 0.01) {
+    fail(`${label} (${base}): hover surface lightness ${hoverL.toFixed(3)} left Iona's ${ionaHoverL.toFixed(3)}`);
   }
   for (const [name, got, min] of pairs) {
     if (!(got >= min)) fail(`${label} (${base}): ${name} = ${got.toFixed(2)}, need ${min}`);
@@ -134,6 +146,7 @@ const SHIPPED = {
   '--accent-primary': '#6f2c3e', '--accent-hover': '#8c3a50',
   '--accent-deep': '#421a26', '--accent-edge': '#c02e5e',
   '--border-focus': '#e8a0b4', '--text-on-accent': '#ffffff',
+  '--bg-hover': '#3f2b3e', '--text-link': '#dd93aa', '--text-link-hover': '#f0bbcb',
 };
 const iona = derive(A.baseFor('online.iona.edu'));
 if (!iona) {

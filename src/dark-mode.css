@@ -122,10 +122,14 @@ html[data-bb-dark] [class*="MuiMenuItem"]:hover {
   --border-subtle:    #2c2c35;   /* quiet dividers inside a card */
   --border-strong:    #464654;   /* card edges — 18 L* off the card fill */
   --border-raised:    #56566a;   /* dialog and menu edges, on the raised fill */
-  /* Outline for interactive controls. WCAG 1.4.11 wants 3:1 against the
-     adjacent surface for a component boundary. This clears it on all six
-     surfaces, worst case 3.20:1 on --bg-raised. */
-  --border-interactive: #85859a;
+  /* Outline for labelled buttons. It was #85859a, which read as a white box
+     drawn around everything (a tester's screenshots from another school made
+     it plain). This grey still clears 3:1 against the surfaces buttons sit on
+     (canvas 3.97, sidebar 3.71, card 3.28) and falls below it only on the
+     tertiary (2.81) and raised (2.32) fills. WCAG 1.4.11 asks for 3:1 where
+     the boundary is what identifies the control; a labelled button is
+     identified by its label, and icon-only controls carry no border at all. */
+  --border-interactive: #6e6e82;
   /* Focus ring. Not the maroon: --accent-primary measures 1.74:1 on the canvas
      and 1.46:1 against the input fill it was drawn around, well short of the
      3:1 a focus indicator needs. The popup already made this correction for its
@@ -626,11 +630,16 @@ html[data-bb-dark] [class*="Button--secondary"]:hover {
    them from a labelled button, since Blackboard wraps button text in its own
    span, leaving a labelled button with two element children.
 
+   Ultra also wraps icons in its own <bb-svg-icon> element. The course card's
+   favourite star is one (button.favorite, 16x40): matched by neither svg nor i,
+   it got the full outline and read as a tall empty box.
+
    Specificity: the rule above is (0,2,2), so every selector here has to clear
    it. :not() and :has() each contribute their argument's specificity, which is
    what lifts these past it rather than relying on source order. */
 html[data-bb-dark] body button:not([class*="primary"]):has(> svg:only-child),
 html[data-bb-dark] body button:not([class*="primary"]):has(> i:only-child),
+html[data-bb-dark] body button:not([class*="primary"]):has(> bb-svg-icon:only-child),
 html[data-bb-dark] body button[class*="icon"],
 html[data-bb-dark] body button[class*="Icon"],
 html[data-bb-dark] body [role="button"][class*="icon"],
@@ -641,6 +650,7 @@ html[data-bb-dark] body [role="button"][class*="Icon"] {
 
 html[data-bb-dark] body button:not([class*="primary"]):has(> svg:only-child):hover,
 html[data-bb-dark] body button:not([class*="primary"]):has(> i:only-child):hover,
+html[data-bb-dark] body button:not([class*="primary"]):has(> bb-svg-icon:only-child):hover,
 html[data-bb-dark] body button[class*="icon"]:hover,
 html[data-bb-dark] body button[class*="Icon"]:hover,
 html[data-bb-dark] body [role="button"][class*="icon"]:hover,
@@ -679,6 +689,25 @@ html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button
 
 html[data-bb-dark] body a:is([role="button"], [class*="button"], [class*="Button"], [class*="btn"])[class*="primary"]:hover {
   background-color: var(--accent-hover) !important;
+}
+
+/* The reverse case: a MUI Link rendered as a <button>. Ultra uses it for every
+   folder and item title in the course outline (button.MuiLink-root
+   .MuiLink-button inside the h3), so the button outline above drew a box
+   around each title while the real links beside them had none. It is a link
+   to the eye, so it gets a link's treatment: no box, an underline on hover.
+   Focus stays visible through section 32's outline ring.
+
+   Specificity: (0,2,3) and, on hover, (0,3,3), clearing the button rule's
+   (0,2,2) and its hover's (0,3,2). */
+html[data-bb-dark] body button[class*="MuiLink-button"] {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+html[data-bb-dark] body button[class*="MuiLink-button"]:hover {
+  background-color: transparent !important;
+  text-decoration: underline !important;
 }
 
 /* ─── 9. TABLES ─────────────────────────────────────────────────────────── */
@@ -1478,9 +1507,15 @@ html[data-bb-dark] [class*="ActivityStream"] > *:hover {
   background-color: var(--bg-hover) !important;
 }
 
-/* Filter dropdown — dark, no border glow */
-html[data-bb-dark] [class*="filter"],
-html[data-bb-dark] [class*="Filter"] {
+/* Filter dropdown — dark, no border glow.
+
+   `has-filter` is a modifier Ultra puts on the page title of any page with
+   filters (h1.page-title.has-filter on the course list), not a filter control,
+   so the substring match boxed "Courses" like an input. It is excluded inside
+   :where() so this rule's specificity stays (0,1,1): a plain :not() would
+   raise it above every rule it now ties or loses to. */
+html[data-bb-dark] [class*="filter"]:not(:where([class*="has-filter"])),
+html[data-bb-dark] [class*="Filter"]:not(:where([class*="has-filter"])) {
   background-color: var(--bg-tertiary) !important;
   color: var(--text-main) !important;
   border: 1px solid var(--border-strong) !important;
@@ -2403,4 +2438,36 @@ html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboa
 html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboard-card-due__count,
 html[data-bb-dark] body section[data-darkboard-card].darkboard-card-due .darkboard-card-due__empty {
   color: var(--text-muted) !important;
+}
+
+/* ─── 38. BLACKBOARD'S LIGHT-THEME BORDERS ───────────────────────────────
+   Section 3 resets every background and text colour, but never border-color,
+   so any edge Blackboard draws in a light-theme grey survives onto the dark
+   page as a near-white line. A tester at another school saw it on every
+   course-outline item; measured on Iona's themed pages, these are all of it:
+   content items and folders and the outline's side panels (229, 229, 229),
+   the separator on each course card, and the header rule on the stream and
+   calendar (205, 205, 205), plus the course list's small badges.
+
+   They go to --border-strong, the theme's own card edge: these are surfaces,
+   not controls. The list is deliberate rather than a universal border-color
+   reset, because restoreEventDots in content.js reads border-left-color from
+   the .course-color-N carriers, and a blanket rule would erase the calendar's
+   event dots along with every coloured status border. */
+html[data-bb-dark] [class*="makeStylesitemContainer"],
+html[data-bb-dark] [class*="makeStylesparentItem"],
+html[data-bb-dark] [class*="makeStylesbadge"],
+html[data-bb-dark] .outline-action-block,
+html[data-bb-dark] hr.separator,
+html[data-bb-dark] .base-header,
+html[data-bb-dark] .day-view-header {
+  border-color: var(--border-strong) !important;
+}
+
+/* The course list's list/grid switch is a control, not a surface: two radio
+   options in a bordered group (makeStylestoggleContainer > makeStylesroot,
+   one divider per option). It takes the button outline. */
+html[data-bb-dark] [class*="makeStylestoggleContainer"] > [class*="makeStylesroot"],
+html[data-bb-dark] [class*="makeStylestoggleContainer"] [class*="makeStylesoption"] {
+  border-color: var(--border-interactive) !important;
 }

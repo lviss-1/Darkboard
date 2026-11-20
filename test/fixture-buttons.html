@@ -45,6 +45,13 @@
        behaviour is recorded rather than discovered later. -->
   <button id="b-bare-text-icon"><svg width="16" height="16"></svg>Print</button>
 
+  <!-- Live shapes from Ultra. The course card's favourite star: its icon is
+       Ultra's own <bb-svg-icon>, not an <svg>, so it must still count as
+       icon-only. And a course-outline title: a MUI Link rendered as a
+       <button>, which is a link to the eye and must not be boxed. -->
+  <button id="b-favorite" class="super-clear favorite js-favourite-button"><bb-svg-icon></bb-svg-icon></button>
+  <h3><button id="b-mui-link" class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineAlways MuiLink-button makeStylescontentItemTitle-0-2-210">Homework</button></h3>
+
   <script>
     window.__probe = function (id) {
       const cs = getComputedStyle(document.getElementById(id));

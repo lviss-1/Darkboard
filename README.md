@@ -23,7 +23,9 @@ There's also a grade colorizer that turns grades green, yellow or red. CSS can't
 
 ## Course cards
 
-Your course list shows each course's overall grade on its card, plus a "Due" section with anything overdue and everything due in the next two weeks. It starts closed, the header tells you how much is due and whether anything is late, and each course remembers whether you opened it. Every item links straight to the assignment.
+Every card on your course list gets a "Due" section with anything overdue and everything due in the next two weeks. It starts closed, the header tells you how much is due and whether anything is late, and each course remembers whether you opened it. Every item links straight to the assignment.
+
+You can also show each course's overall grade on its card. It's off unless you turn on **Course grades** in the popup, and while it's off DarkBoard doesn't read your grades at all.
 
 It uses the same Blackboard endpoints Ultra's own pages call, with the session you're already signed in with, and caches the results in the tab for ten minutes. Nothing is sent anywhere else. It works with dark mode on or off.
 

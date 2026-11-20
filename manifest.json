@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Blackboard Dark Mode - DarkBoard",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Dark mode for Blackboard Ultra. Built at Iona University, in beta for other schools. No white flash, just a readable LMS at 2am.",
 
   "icons": {

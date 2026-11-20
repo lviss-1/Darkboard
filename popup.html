@@ -121,6 +121,11 @@
       overflow: hidden;
     }
 
+    .card-secondary {
+      margin-top: 10px;
+      padding: 14px 18px;
+    }
+
     .toggle-row {
       display: flex;
       align-items: center;
@@ -427,6 +432,21 @@
     <div class="status-row">
       <div class="status-dot"></div>
       <span class="status-text" id="statusText" aria-live="polite">INACTIVE</span>
+    </div>
+  </div>
+
+  <!-- Opt-in, independent of dark mode: course-cards.js follows the stored
+       value live, so flipping it changes open tabs without a reload. -->
+  <div class="card card-secondary" id="gradesCard">
+    <div class="toggle-row">
+      <div>
+        <label class="toggle-title" for="gradesToggle">COURSE GRADES</label>
+        <div class="toggle-subtitle">Show on course cards</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="gradesToggle" aria-label="Show grades on course cards" />
+        <span class="track"></span>
+      </label>
     </div>
   </div>
 

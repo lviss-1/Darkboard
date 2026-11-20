@@ -126,17 +126,30 @@ screenshot.
 
 | Element | Result |
 |---|---|
-| Track (any shape) | `rgb(43, 43, 53)`, `--bg-tertiary` |
-| Completed, or an unnamed fill | `rgb(111, 44, 62)`, no image |
-| Started | Diagonal `repeating-linear-gradient` of the accent over a 45% accent/track mix |
+| Track (any shape) | `rgb(10, 10, 12)`, `--bg-primary` |
+| Completed, or an unnamed fill | `rgb(192, 46, 94)`, `--accent-edge`, no image |
+| Started | Diagonal `repeating-linear-gradient` of the edge over a 40% edge/track mix |
 | Not started | The track colour, no image |
 
-Measured (WCAG ratios): completed vs track 1.40:1, accent stripe vs the started
-base 1.22:1, started base vs track 1.15:1. The counts printed beside the bar
-carry the information, so the bar is supplementary rather than a 1.4.11
-graphic. On the live page Blackboard's own near-white segment border is what
-delineates it (sampled from the screenshot). If that border ever disappears,
-`--accent-edge` is the token to outline the fill with.
+**Fill vs track contrast** (`__probe().legibility`, WCAG 1.4.11 wants 3:1).
+In 1.4.0 the fill was `--accent-primary` on a `--bg-tertiary` track, 1.40:1.
+The fill was there, but students reported they couldn't tell how far it went.
+It is now `--accent-edge` on `--bg-primary`: **3.57:1** here, the shipped
+Iona tokens. `?css=.tmp-old.css` reproduces 1.40 and fails `fillMeets3to1`.
+
+The pairing holds for every school, not only Iona. Measured with
+`accent.js`'s `derive()` across eight real bases:
+
+| Fill → track | `--bg-tertiary` | `--bg-primary` |
+|---|---|---|
+| `--accent-primary` | 1.10–2.41 | 1.28–3.41 |
+| `--accent-edge` | 2.41–2.71 | **3.41–3.83** |
+
+`derive()` only returns a ramp whose edge clears the page canvas at 3.5:1, or
+whose accent already clears it unaided, so the edge on the canvas is the one
+ramp/ladder pairing that is guaranteed. The started stripes are the edge
+colour too, so they clear the same 3:1. Blackboard's own light border still
+outlines the track against the card.
 
 A fill is recognised as an **empty** `div` or `span` inside a bar, and the track
 as whatever directly holds one. State comes from class names
@@ -186,6 +199,19 @@ Query parameters:
 - `?cardsCss=` swaps the card stylesheet (`git show HEAD:src/course-cards.css >
   test/.tmp-old-cards.css`, then `?cardsCss=.tmp-old-cards.css`).
 - `?css=` swaps `dark-mode.css` the same way; it only applies with `?dark`.
+- `?grades` starts with the popup's COURSE GRADES switch on. Without it the
+  switch is off, as it is for every student who never touched it.
+
+**The grade badge is opt-in.** The `chrome` stub answers `showCardGrades` and
+drives `chrome.storage.onChanged` through `__setPref`, so `__grades(bool)`
+exercises the real popup path:
+
+| Run | Expected |
+|---|---|
+| default (switch off) | No badge on any card; Due sections, links and gaps unchanged; **5 requests** (1 due + 4 item links), none to `users/me` or `gradebook` |
+| `await __grades(true)` | Badges `98.05%` and `B` appear without a reload; exactly 9 new requests (`users/me`, 5 columns, 3 grades) |
+| `await __grades(false)` | Badges removed; 0 new requests; 5 Due sections untouched |
+| `?grades` cold / `?grades&warm` | 14 / 0 requests, as in 1.4.0 |
 
 **The instructor name.** Each card's status line carries the live
 `bb-username` → `bb-ui-username` → `div` → `div` → `bdi` chain, read from the
@@ -197,6 +223,8 @@ the light theme they are transparent): four layers at `rgb(10, 10, 12)` with
 `?css=.tmp-old.css` from before the fix, `[]` after. The same four were
 measured on the live page before the fix, and on that page nothing else in
 the cards matched the sweep.
+
+With `?grades`:
 
 | Card | Expected |
 |---|---|
@@ -213,6 +241,7 @@ and its header carries an `aria-label` sentence ("Due soon: 4 items,
 1 overdue").
 
 ```js
+// with ?grades
 await __probe()            // requests 14 cold (1 user + 1 due + 5 columns + 3 grades + 4 item links); every layout gap 0; linksSameOrigin, linksAsExpected true
 await __openDue('_101_1')  // open; remembered ['_101_1']; row 1 grows, every gap still 0
 await __rerender()         // replaced article re-decorated once, still open, newRequests 0
@@ -459,6 +488,7 @@ token, so the two cannot drift apart.
 | The toggle | enabled either way |
 | `.toggle-title` | labels `darkToggle`, so the text is a hit target |
 | Status text | carries `aria-live="polite"` |
+| COURSE GRADES row (`grades`) | unchecked with nothing stored (opt-in); its label names `gradesToggle`; subtitle on one line; title 16.24:1, subtitle 5.19:1; `__clickGradesToggle()` writes exactly `{ showCardGrades: true }` |
 | Rating prompt | shown, a static href to `chromewebstore.google.com/detail/<slug>/ogkjalalkednannikfgjhcnmgcepkeip` |
 | Rating prompt under `?noid` | unchanged — still shown, still pointing at the published listing |
 | Rating prompt colour | at least 4.5:1 |

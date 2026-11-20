@@ -201,6 +201,20 @@ async function removeSite(site) {
 // they are in the markup.
 resolveSite().then(renderSite).catch(() => {});
 
+// Course-card grades are opt-in: on only when the stored value is exactly
+// true. course-cards.js follows chrome.storage.onChanged in every Blackboard
+// tab, so writing the value is the whole job; there is no message to relay.
+const GRADES_KEY = 'showCardGrades';
+const gradesToggle = document.getElementById('gradesToggle');
+
+chrome.storage.local.get(GRADES_KEY, (result) => {
+  gradesToggle.checked = !chrome.runtime.lastError && !!result && result[GRADES_KEY] === true;
+});
+
+gradesToggle.addEventListener('change', () => {
+  chrome.storage.local.set({ [GRADES_KEY]: gradesToggle.checked });
+});
+
 toggle.addEventListener('change', () => {
   const enabled = toggle.checked;
 

@@ -9,6 +9,8 @@
      ?warm      keeps sessionStorage, so the second load runs from the cache.
      ?keepOpen  keeps the remembered open Due sections from the last load.
      ?cardsCss= swaps course-cards.css, for before/after comparisons.
+     ?grades    starts with the popup's COURSE GRADES switch on (it is off by
+                default, as for every student who never touched it).
      ?css=      swaps dark-mode.css the same way (only with ?dark). -->
 <html lang="en">
 <head>
@@ -57,16 +59,33 @@
     })();
 
     // ─── chrome.* ──────────────────────────────────────────────────────────
-    // Only content.js reads chrome.*; course-cards.js uses none of it.
-    window.chrome = {
-      storage: {
-        local: {
-          get(_key, cb) { setTimeout(() => cb({ darkModeEnabled: window.__dark }), 0); },
-          set() {},
+    // content.js reads darkModeEnabled; course-cards.js reads showCardGrades
+    // and follows it through onChanged, which __setPref drives.
+    (function () {
+      const prefs = { darkModeEnabled: window.__dark };
+      if (params.has('grades')) prefs.showCardGrades = true;
+      const changeListeners = [];
+      window.chrome = {
+        storage: {
+          local: {
+            get(key, cb) {
+              const keys = Array.isArray(key) ? key : [key];
+              const out = {};
+              for (const k of keys) if (k in prefs) out[k] = prefs[k];
+              setTimeout(() => cb(out), 0);
+            },
+            set() {},
+          },
+          onChanged: { addListener(fn) { changeListeners.push(fn); } },
         },
-      },
-      runtime: { onMessage: { addListener() {} } },
-    };
+        runtime: { onMessage: { addListener() {} } },
+      };
+      window.__setPref = (key, value) => {
+        const oldValue = prefs[key];
+        prefs[key] = value;
+        for (const fn of changeListeners) fn({ [key]: { oldValue, newValue: value } }, 'local');
+      };
+    })();
 
     // ─── Blackboard's API ──────────────────────────────────────────────────
     // Shapes as the live endpoints return them, trimmed to the fields read.
@@ -413,6 +432,22 @@
     };
 
     // BetterCampus decorating a card after us: ours must go.
+    // Flips the COURSE GRADES switch the way the popup does (a storage write
+    // seen through onChanged) and reports what changed on the page.
+    window.__grades = async function (value) {
+      await __settle();
+      const before = window.__requests.length;
+      window.__setPref('showCardGrades', value);
+      await __settle();
+      const added = window.__requests.slice(before).map((p) => p.split('?')[0].replace(/_\d+_\d+/g, '_ID_'));
+      return {
+        badges: [...document.querySelectorAll('[data-darkboard-card="grade"]')].map((b) => b.textContent),
+        dueSections: document.querySelectorAll('[data-darkboard-card="due"]').length,
+        newRequests: added.length,
+        newPaths: [...new Set(added)],
+      };
+    };
+
     window.__lateBetterCampus = async function (id = '_102_1') {
       await __settle();
       const anchor = document.createElement('div');

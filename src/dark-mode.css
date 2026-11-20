@@ -1942,61 +1942,74 @@ html[data-bb-dark] body [class*="dueSoon"] {
 
    Specificity: the segment rule is (0,3,3) and the track rule (0,3,3), both
    above the (0,2,x) rules elsewhere in this section; the state rules below
-   add attribute selectors and win over the plain fill. */
+   add attribute selectors and win over the plain fill.
+
+   Colours: fill --accent-edge on a --bg-primary track. The 1.4.0 pair,
+   --accent-primary on --bg-tertiary, measured 1.40:1 on Iona: the fill was
+   there but students could not tell how far it went. WCAG 1.4.11 wants 3:1
+   for a graphic that carries meaning. Measured across eight real school
+   ramps from accent.js, the edge on the canvas lands 3.41–3.83:1 (Iona
+   3.59), and that holds for any school, not just these: derive() only
+   returns a ramp whose edge clears the page canvas at 3.5:1, or whose
+   accent already clears it unaided. No other pairing of ramp and ladder
+   tokens is guaranteed. The track reads as an empty slot, and Blackboard's
+   own light border still outlines it against the card. */
 html[data-bb-dark] body [role="progressbar"],
 html[data-bb-dark] body progress,
 html[data-bb-dark] body [class*="progress-track"],
 html[data-bb-dark] body [class*="ProgressTrack"],
 html[data-bb-dark] body [class*="MuiLinearProgress-root"] {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-primary) !important;
   border: none !important;
 }
 
 html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]):has(> :is(div, span):empty),
 html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :has(> :is(div, span):empty) {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty,
 html[data-bb-dark] body [class*="progress-fill"],
 html[data-bb-dark] body [class*="ProgressFill"],
 html[data-bb-dark] body [class*="MuiLinearProgress-bar"] {
-  background-color: var(--accent-primary) !important;
+  background-color: var(--accent-edge) !important;
 }
 
 /* Blackboard counts "started" apart from "completed", and the bar should
-   too. A flat mid-shade sits only ~3 L* above the track and barely reads,
-   and a lighter one would make started look further along than completed,
-   so started is striped: the accent over a dimmer mix of accent and track.
-   The pattern also keeps the state from resting on colour alone (1.4.1).
-   Tokens only, so another school's indigo ramp carries through. */
+   too. A flat mid-shade barely reads against the track, and a lighter one
+   would make started look further along than completed, so started is
+   striped: edge-coloured stripes, which clear 3:1 on the track as the
+   completed fill does, over a dimmer mix of edge and track that sets it
+   apart from completed. The pattern also keeps the state from resting on
+   colour alone (1.4.1). Tokens only, so another school's ramp carries
+   through. */
 html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty:is([class*="started" i], [class*="in-progress" i], [class*="inProgress" i]):not([class*="notstarted" i], [class*="not-started" i], [class*="not_started" i], [class*="unstarted" i]) {
-  background-color: color-mix(in oklab, var(--accent-primary) 45%, var(--bg-tertiary)) !important;
+  background-color: color-mix(in oklab, var(--accent-edge) 40%, var(--bg-primary)) !important;
   background-image: repeating-linear-gradient(
     135deg,
-    var(--accent-primary) 0 4px,
+    var(--accent-edge) 0 4px,
     transparent 4px 8px
   ) !important;
 }
 
 /* A segment for work not yet started is the track showing through. */
 html[data-bb-dark] body :is([role="progressbar"], [class*="progress-bar"], [class*="progressBar"], [class*="ProgressBar"]) :is(div, span):empty:is([class*="notstarted" i], [class*="not-started" i], [class*="not_started" i], [class*="unstarted" i], [class*="remaining" i]) {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 /* With nothing started, the track is the wrapper's only child and has no
    children of its own, so it is empty and looks exactly like a fill. The
    wrapper's aria-valuenow is the only thing that tells them apart. */
 html[data-bb-dark] body [role="progressbar"][aria-valuenow="0"] > :is(div, span):empty:only-child {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 html[data-bb-dark] body progress::-webkit-progress-bar {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 html[data-bb-dark] body progress::-webkit-progress-value {
-  background-color: var(--accent-primary) !important;
+  background-color: var(--accent-edge) !important;
 }
 
 /* ─── 29. DISABLED CONTROLS ──────────────────────────────────────────────

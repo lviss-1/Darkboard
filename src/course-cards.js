@@ -2,21 +2,24 @@
  * course-cards.js — overall grade and upcoming work on the course list
  *
  * Adds two things to each card on /ultra/course:
- *   - a badge on the banner with the overall grade, as Ultra itself shows it
- *     inside the course (a letter when the grading schema has one, otherwise
- *     the percentage to two places);
+ *   - when the student opts in from the popup (showCardGrades), a badge on
+ *     the banner with the overall grade, as Ultra itself shows it inside the
+ *     course (a letter when the grading schema has one, otherwise the
+ *     percentage to two places);
  *   - a collapsible "Due" section under the card, closed until the student
  *     opens it, remembered per course. Its header carries the count and any
  *     overdue work, so a closed section still says whether to look.
  *
  * Everything comes from the endpoints Ultra's own pages already call, made
  * same-origin with the student's session: one for every course's due items,
- * one for the user id, two per visible course for the grade. Results live
- * for ten minutes in this tab's sessionStorage on Blackboard's own origin,
- * which already holds the same data, and never leave the browser.
+ * one per shown due item for its link, and, only while grades are switched
+ * on, one for the user id and two per visible course for the grade. Results
+ * live for ten minutes in this tab's sessionStorage on Blackboard's own
+ * origin, which already holds the same data, and never leave the browser.
  *
  * Always on, and independent of dark mode: course-cards.css styles it for
- * light, section 37 of dark-mode.css for dark.
+ * light, section 37 of dark-mode.css for dark. The one chrome.* use is the
+ * grade preference, read before the first draw and followed live.
  *
  * Wrapped in a function because content scripts share one lexical scope: a
  * top-level const here that collides with one in content.js would throw at
@@ -39,6 +42,10 @@
   const BETTERCAMPUS = '[class*="bettercampus-card-grade"], [class*="bettercampus-grade-anchor"]';
   const OVERALL_NAME = /overall|total|final/i;
 
+  // Opt-in: on only when the stored value is exactly true, so a student who
+  // never touched the popup, including everyone upgrading from 1.4.0, has it
+  // off.
+  const GRADES_KEY = 'showCardGrades';
   const CACHE_KEY = 'darkboard.cards.v3';
   const OPEN_KEY = 'darkboard.cards.dueOpen';
   const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -54,6 +61,7 @@
 
   const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
+  let showGrades = false;
   let observer = null;
   let refreshing = null;
   let refreshQueued = false;
@@ -472,8 +480,10 @@
       const courseId = courseIdOf(article);
       const details = article.querySelector('.element-details') || article;
 
-      const gradeEntry = cache.grades[courseId];
-      if (!fresh(gradeEntry)) missing = true;
+      // With grades off, a grade is never "missing": counting it would refetch
+      // on every mutation for a badge nobody asked for.
+      const gradeEntry = showGrades ? cache.grades[courseId] : null;
+      if (showGrades && !fresh(gradeEntry)) missing = true;
       if (!fresh(cache.due)) missing = true;
 
       if (gradeEntry && gradeEntry.grade && !article.querySelector(`[${MARK}="grade"]`)) {
@@ -526,15 +536,19 @@
 
     refreshing = (async () => {
       const courseIds = [...new Set(ownCards().map(courseIdOf))];
-      const userId = await loadUserId();
 
+      // The user id exists only for the gradebook, so with grades off neither
+      // is asked for.
       const tasks = [() => loadDue()];
-      if (userId) {
-        for (const id of courseIds) {
-          if (!fresh(cache.grades[id])) tasks.push(() => loadGrade(id, userId));
+      if (showGrades) {
+        const userId = await loadUserId();
+        if (userId) {
+          for (const id of courseIds) {
+            if (!fresh(cache.grades[id])) tasks.push(() => loadGrade(id, userId));
+          }
+        } else {
+          deferGrades(courseIds);
         }
-      } else {
-        deferGrades(courseIds);
       }
       await runLimited(tasks);
       // Links need the due items, so they resolve in a second wave.
@@ -569,9 +583,56 @@
     if (renderQuietly()) refresh();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
+  // Switching on draws from the cache at once and fetches what is missing;
+  // switching off removes the badges and stops asking. No reload either way.
+  function applyGrades(value) {
+    showGrades = value === true;
+    if (!observer) return;
+    if (!showGrades) {
+      observer.disconnect();
+      for (const badge of document.querySelectorAll(`[${MARK}="grade"]`)) badge.remove();
+      observer.observe(document.body, { childList: true, subtree: true });
+      return;
+    }
+    if (renderQuietly()) refresh();
   }
+
+  // The preference is read before the first draw, so a card is never drawn
+  // once without its badge and then again with it. Once the extension is
+  // updated, an old page's chrome.* throws ("context invalidated"); that page
+  // simply keeps grades off.
+  function readGradesPreference() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(GRADES_KEY, (result) => {
+          resolve(!chrome.runtime.lastError && !!result && result[GRADES_KEY] === true);
+        });
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+
+  function domReady() {
+    return new Promise((resolve) => {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', resolve, { once: true });
+      } else {
+        resolve();
+      }
+    });
+  }
+
+  // Storage changes reach content scripts directly, so the popup needs no
+  // relay through the background worker.
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && GRADES_KEY in changes) applyGrades(changes[GRADES_KEY].newValue);
+    });
+  } catch (e) {}
+
+  Promise.all([readGradesPreference(), domReady()]).then(([value]) => {
+    showGrades = value;
+    start();
+  });
 })();

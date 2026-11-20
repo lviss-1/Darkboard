@@ -48,6 +48,7 @@
     const STUB = `<base href="../">
       <script>
         window.__permissionCalls = [];
+        window.__storageSets = [];
         window.chrome = {
           runtime: {
             getManifest: () => ({
@@ -63,7 +64,7 @@
             // assertion is that the link is unaffected by its absence.
             id: ${NO_ID ? 'undefined' : "'ogkjalalkednannikfgjhcnmgcepkeip'"},
           },
-          storage: { local: { get: (k, cb) => cb({}), set() {} } },
+          storage: { local: { get: (k, cb) => cb({}), set: (v) => window.__storageSets.push(v) } },
           tabs: {
             query: (q, cb) => {
               const hit = !q.url || ${JSON.stringify(SITE)} === 'static';
@@ -141,6 +142,22 @@
         statusIsLive:
           doc.getElementById('statusText').getAttribute('aria-live') === 'polite',
 
+        // The course-grades switch is opt-in: with nothing stored it must be
+        // off, and its label must name the right input.
+        grades: (() => {
+          const input = doc.getElementById('gradesToggle');
+          const label = doc.querySelector('label[for="gradesToggle"]');
+          const subtitle = doc.querySelector('#gradesCard .toggle-subtitle');
+          const surface = win.getComputedStyle(doc.getElementById('gradesCard')).backgroundColor;
+          return {
+            uncheckedByDefault: input.checked === false,
+            labelled: !!label && label.textContent.trim() === 'COURSE GRADES',
+            subtitleOneLine: subtitle.getClientRects().length === 1,
+            titleContrast: __contrast(win.getComputedStyle(label).color, surface),
+            subtitleContrast: __contrast(win.getComputedStyle(subtitle).color, surface),
+          };
+        })(),
+
         // The rating prompt. It must point at this extension's own published
         // listing, and must do so whether or not a runtime id exists — an
         // unpacked build gets a locally generated one, which is how this link
@@ -178,6 +195,13 @@
           };
         })(),
       };
+    };
+
+    // Flips the course-grades switch and reports what was written to storage.
+    window.__clickGradesToggle = async function () {
+      const doc = await window.__ready;
+      doc.getElementById('gradesToggle').click();
+      return { checked: doc.getElementById('gradesToggle').checked, sets: doc.defaultView.__storageSets };
     };
 
     // Clicks the site panel's button and reports what the popup asked Chrome

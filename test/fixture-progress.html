@@ -17,6 +17,7 @@
     });
   </script>
   <script src="restyle.js"></script>
+  <script src="contrast.js"></script>
 
   <!-- Stands in for Blackboard's light theme. Every colour here is wiped by
        section 3's inherit rule, which is why the theme has to restate them.
@@ -121,8 +122,10 @@
         const [r, g, b] = hex.slice(1).match(/../g).map((pair) => parseInt(pair, 16));
         return `rgb(${r}, ${g}, ${b})`;
       };
-      const ACCENT = css('--accent-primary');
-      const TRACK  = css('--bg-tertiary');
+      // The fill is the accent's edge on the page canvas: the one ramp/ladder
+      // pairing accent.js guarantees at 3:1 for every school.
+      const ACCENT = css('--accent-edge');
+      const TRACK  = css('--bg-primary');
       const q = (sel) => document.querySelector(sel);
       const striped = (el) => img(el).includes('repeating-linear-gradient');
       const solid   = (el) => bg(el) === ACCENT && !striped(el);
@@ -166,6 +169,16 @@
           trackIsTrack: bg(q('#generic')) === TRACK,
           fillIsAccent: bg(q('#generic .progress-fill')) === ACCENT,
         },
+        // Measured, not assumed: what was rendered for a completed segment
+        // against what was rendered for its track. WCAG 1.4.11 wants 3:1.
+        legibility: (() => {
+          const fillVsTrack = __contrast(bg(segs[0]), bg(q('#segmented')));
+          return {
+            fillVsTrack: +fillVsTrack.toFixed(2),
+            fillMeets3to1: fillVsTrack >= 3,
+            startedBaseUnlikeCompleted: bg(segs[1]) !== bg(segs[0]),
+          };
+        })(),
       };
 
       const failures = [];
